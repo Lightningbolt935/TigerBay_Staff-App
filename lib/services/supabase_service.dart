@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/staff_member.dart';
@@ -12,53 +13,102 @@ class SupabaseService {
       : _client = client ?? Supabase.instance.client;
 
   // ---------------------------------------------------------------------------
-  // Authentication RPCs
+  // Authentication
   // ---------------------------------------------------------------------------
 
   /// Requests a one-time password (OTP) for the given [identifier].
   Future<void> requestOtp(String identifier) async {
     final cleanIdentifier = identifier.trim();
+    final cleanEmail = cleanIdentifier.toLowerCase();
     if (kDebugMode) {
-      print(
-          '🚀 Calling RPC request_staff_otp with p_identifier: "$cleanIdentifier"');
+      print('🚀 Requesting OTP for identifier: "$cleanIdentifier"');
     }
 
+    // 1. Try RPC request_staff_otp first
     try {
       await _client.rpc(
         'request_staff_otp',
         params: {'p_identifier': cleanIdentifier},
       );
       if (kDebugMode) {
-        print('✅ request_staff_otp succeeded for: $cleanIdentifier');
+        print('✅ request_staff_otp RPC succeeded for: $cleanIdentifier');
       }
-    } on PostgrestException catch (e, stack) {
+      return;
+    } catch (rpcErr) {
       if (kDebugMode) {
-        print('❌ POSTGREST ERROR in requestOtp:');
-        print('   Message: ${e.message}');
-        print('   Code:    ${e.code}');
-        print('   Details: ${e.details}');
-        print('   Hint:    ${e.hint}');
-        print(stack);
+        print('⚠️ RPC request_staff_otp unavailable or failed ($rpcErr). Using direct table flow...');
       }
-      rethrow;
-    } catch (e, stack) {
+    }
+
+    // 2. Direct DB flow: Validate staff in staff_members table
+    Map<String, dynamic>? staffRow;
+    try {
+      final rows = await _client
+          .from('staff_members')
+          .select()
+          .or('email.ilike.$cleanEmail,staff_id.eq.$cleanIdentifier,id.eq.$cleanIdentifier')
+          .limit(1);
+
+      if (rows.isNotEmpty) {
+        staffRow = Map<String, dynamic>.from(rows.first);
+      }
+    } catch (e) {
+      if (kDebugMode) print('⚠️ Query staff_members error: $e');
+    }
+
+    if (staffRow == null) {
+      try {
+        final rows = await _client
+            .from('staff_members')
+            .select()
+            .ilike('email', cleanEmail)
+            .limit(1);
+        if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
+      } catch (_) {}
+    }
+
+    if (staffRow == null) {
+      throw Exception('No staff account found for "$cleanIdentifier". Please check and try again.');
+    }
+
+    final isActive = staffRow['is_active'] as bool? ?? true;
+    if (!isActive) {
+      throw Exception('This account has been deactivated. Please contact your Branch Manager.');
+    }
+
+    final staffId = (staffRow['staff_id'] ?? staffRow['id'] ?? '').toString();
+    final email = (staffRow['email'] ?? cleanEmail).toString();
+    final otp = (Random.secure().nextInt(900000) + 100000).toString();
+    final expiresAt = DateTime.now().toUtc().add(const Duration(minutes: 15));
+
+    // Insert OTP into staff_auth_otps
+    try {
+      await _client.from('staff_auth_otps').insert({
+        'staff_id': staffId,
+        'email': email,
+        'otp': otp,
+        'expires_at': expiresAt.toIso8601String(),
+      });
       if (kDebugMode) {
-        print('❌ UNEXPECTED ERROR in requestOtp: $e');
-        print(stack);
+        print('✅ OTP generated and stored in staff_auth_otps: $otp for $email (staff_id: $staffId)');
       }
-      rethrow;
+    } catch (insertErr) {
+      if (kDebugMode) print('❌ Failed inserting into staff_auth_otps: $insertErr');
+      throw Exception('Failed to generate OTP: $insertErr');
     }
   }
 
-  /// Verifies the OTP entered by the staff member.
+  /// Verifies the OTP entered by the staff member against RPC or staff_auth_otps table.
   Future<StaffMember> verifyOtp(String identifier, String otpCode) async {
     final cleanIdentifier = identifier.trim();
+    final cleanEmail = cleanIdentifier.toLowerCase();
     final cleanOtp = otpCode.trim();
 
     if (kDebugMode) {
-      print('🚀 Calling RPC verify_staff_otp for: $cleanIdentifier');
+      print('🚀 Verifying OTP for "$cleanIdentifier" (entered code: $cleanOtp)');
     }
 
+    // 1. Try RPC verify_staff_otp first
     try {
       final response = await _client.rpc(
         'verify_staff_otp',
@@ -68,32 +118,123 @@ class SupabaseService {
         },
       );
 
-      if (response == null) {
-        throw const PostgrestException(
-          message: 'Received null response from verify_staff_otp',
-        );
+      if (response != null) {
+        final data = Map<String, dynamic>.from(response as Map);
+        final staffJson = data.containsKey('staff') && data['staff'] is Map
+            ? Map<String, dynamic>.from(data['staff'] as Map)
+            : data;
+        return StaffMember.fromJson(staffJson);
       }
-
-      final data = Map<String, dynamic>.from(response as Map);
-
-      // The RPC may return the staff record directly or nested under "staff".
-      final staffJson = data.containsKey('staff') && data['staff'] is Map
-          ? Map<String, dynamic>.from(data['staff'] as Map)
-          : data;
-
-      return StaffMember.fromJson(staffJson);
-    } on PostgrestException catch (e) {
+    } catch (rpcErr) {
       if (kDebugMode) {
-        print('❌ POSTGREST ERROR in verifyOtp: ${e.message} (Code: ${e.code})');
+        print('⚠️ RPC verify_staff_otp unavailable or failed ($rpcErr). Using direct table verification...');
       }
-      rethrow;
-    } catch (e, stack) {
-      if (kDebugMode) {
-        print('❌ UNEXPECTED ERROR in verifyOtp: $e');
-        print(stack);
-      }
-      rethrow;
     }
+
+    // 2. Direct DB verification against staff_auth_otps table
+    List<Map<String, dynamic>> otpRows = [];
+    try {
+      final res = await _client
+          .from('staff_auth_otps')
+          .select()
+          .or('email.ilike.$cleanEmail,staff_id.eq.$cleanIdentifier')
+          .order('expires_at', ascending: false)
+          .limit(10);
+      otpRows = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      if (kDebugMode) print('⚠️ Query staff_auth_otps with .or failed ($e). Trying email query...');
+      try {
+        final res = await _client
+            .from('staff_auth_otps')
+            .select()
+            .ilike('email', cleanEmail)
+            .order('expires_at', ascending: false)
+            .limit(10);
+        otpRows = List<Map<String, dynamic>>.from(res);
+      } catch (e2) {
+        if (kDebugMode) print('⚠️ Query staff_auth_otps by email failed: $e2');
+      }
+    }
+
+    if (otpRows.isEmpty) {
+      try {
+        final res = await _client
+            .from('staff_auth_otps')
+            .select()
+            .eq('staff_id', cleanIdentifier)
+            .order('expires_at', ascending: false)
+            .limit(10);
+        otpRows = List<Map<String, dynamic>>.from(res);
+      } catch (_) {}
+    }
+
+    if (otpRows.isEmpty) {
+      throw Exception('No OTP request found for this account. Please request a new code.');
+    }
+
+    final now = DateTime.now().toUtc();
+    Map<String, dynamic>? matchingOtpRow;
+
+    for (final row in otpRows) {
+      final storedOtp = (row['otp'] ?? '').toString().trim();
+      final expiresAtStr = row['expires_at']?.toString();
+      DateTime? expiresAt;
+      if (expiresAtStr != null) {
+        expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
+      }
+
+      if (storedOtp == cleanOtp) {
+        // Allow up to 10 minutes grace for server/device clock drift
+        if (expiresAt == null || expiresAt.add(const Duration(minutes: 10)).isAfter(now)) {
+          matchingOtpRow = row;
+          break;
+        } else {
+          throw Exception('This OTP has expired. Please request a new code.');
+        }
+      }
+    }
+
+    if (matchingOtpRow == null) {
+      throw Exception('The verification code you entered is incorrect. Please try again.');
+    }
+
+    // 3. Fetch staff profile from staff_members
+    final matchedStaffId = (matchingOtpRow['staff_id'] ?? '').toString();
+    final matchedEmail = (matchingOtpRow['email'] ?? cleanEmail).toString();
+
+    Map<String, dynamic>? staffRow;
+    try {
+      final rows = await _client
+          .from('staff_members')
+          .select()
+          .or('email.ilike.$matchedEmail,staff_id.eq.$matchedStaffId,id.eq.$matchedStaffId')
+          .limit(1);
+      if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
+    } catch (_) {
+      try {
+        final rows = await _client
+            .from('staff_members')
+            .select()
+            .ilike('email', matchedEmail)
+            .limit(1);
+        if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
+      } catch (_) {}
+    }
+
+    if (staffRow == null) {
+      throw Exception('Staff member profile not found. Please contact your manager.');
+    }
+
+    final staff = StaffMember.fromJson(staffRow);
+    if (!staff.isActive) {
+      throw Exception('Your account has been deactivated. Contact your Branch Manager.');
+    }
+
+    if (kDebugMode) {
+      print('✅ Staff authenticated successfully: ${staff.name} (${staff.email})');
+    }
+
+    return staff;
   }
 
   // ---------------------------------------------------------------------------

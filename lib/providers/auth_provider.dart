@@ -266,18 +266,27 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String _parseError(dynamic error) {
-    final message = error.toString().toLowerCase();
+    final raw = error is Exception
+        ? error.toString().replaceFirst('Exception: ', '').trim()
+        : error.toString().trim();
+    final message = raw.toLowerCase();
     if (message.contains('inactive') || message.contains('deactivated')) {
       return 'This account has been deactivated. Contact your Branch Manager.';
     }
     if (message.contains('not found') || message.contains('no staff')) {
       return 'No staff account found for this identifier. Check and try again.';
     }
-    if (message.contains('invalid') || message.contains('expired')) {
-      return 'Invalid or expired OTP. Please request a new code.';
+    if (message.contains('incorrect') || message.contains('invalid otp')) {
+      return 'The verification code you entered is incorrect. Please try again.';
     }
-    if (message.contains('network') || message.contains('socket')) {
+    if (message.contains('expired')) {
+      return 'This OTP has expired. Please request a new code.';
+    }
+    if (message.contains('network') || message.contains('socket') || message.contains('failed host lookup')) {
       return 'Network error. Please check your connection and try again.';
+    }
+    if (raw.isNotEmpty && !raw.startsWith('PostgrestException') && !raw.startsWith('ClientException')) {
+      return raw;
     }
     return 'Something went wrong. Please try again.';
   }
