@@ -13,13 +13,48 @@ class SupabaseService {
       : _client = client ?? Supabase.instance.client;
 
   // ---------------------------------------------------------------------------
-  // Authentication
+  // Authentication Helpers & Methods
   // ---------------------------------------------------------------------------
+
+  /// Helper to safely resolve a staff member from `staff_members` table
+  /// by email, staff_id, uuid id, or name.
+  Future<Map<String, dynamic>?> _findStaffMember(String identifier) async {
+    final clean = identifier.trim();
+    if (clean.isEmpty) return null;
+    final isUuid = RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(clean);
+
+    // 1. Try match email
+    try {
+      final rows = await _client.from('staff_members').select().ilike('email', clean).limit(1);
+      if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+    } catch (_) {}
+
+    // 2. Try match staff_id
+    try {
+      final rows = await _client.from('staff_members').select().ilike('staff_id', clean).limit(1);
+      if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+    } catch (_) {}
+
+    // 3. Try match uuid id
+    if (isUuid) {
+      try {
+        final rows = await _client.from('staff_members').select().eq('id', clean).limit(1);
+        if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+      } catch (_) {}
+    }
+
+    // 4. Try match name
+    try {
+      final rows = await _client.from('staff_members').select().ilike('name', clean).limit(1);
+      if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+    } catch (_) {}
+
+    return null;
+  }
 
   /// Requests a one-time password (OTP) for the given [identifier].
   Future<void> requestOtp(String identifier) async {
     final cleanIdentifier = identifier.trim();
-    final cleanEmail = cleanIdentifier.toLowerCase();
     if (kDebugMode) {
       print('🚀 Requesting OTP for identifier: "$cleanIdentifier"');
     }
@@ -36,36 +71,12 @@ class SupabaseService {
       return;
     } catch (rpcErr) {
       if (kDebugMode) {
-        print('⚠️ RPC request_staff_otp unavailable or failed ($rpcErr). Using direct table flow...');
+        print('⚠️ RPC request_staff_otp skipped: $rpcErr');
       }
     }
 
     // 2. Direct DB flow: Validate staff in staff_members table
-    Map<String, dynamic>? staffRow;
-    try {
-      final rows = await _client
-          .from('staff_members')
-          .select()
-          .or('email.ilike.$cleanEmail,staff_id.eq.$cleanIdentifier,id.eq.$cleanIdentifier')
-          .limit(1);
-
-      if (rows.isNotEmpty) {
-        staffRow = Map<String, dynamic>.from(rows.first);
-      }
-    } catch (e) {
-      if (kDebugMode) print('⚠️ Query staff_members error: $e');
-    }
-
-    if (staffRow == null) {
-      try {
-        final rows = await _client
-            .from('staff_members')
-            .select()
-            .ilike('email', cleanEmail)
-            .limit(1);
-        if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
-      } catch (_) {}
-    }
+    final staffRow = await _findStaffMember(cleanIdentifier);
 
     if (staffRow == null) {
       throw Exception('No staff account found for "$cleanIdentifier". Please check and try again.');
@@ -77,7 +88,7 @@ class SupabaseService {
     }
 
     final staffId = (staffRow['staff_id'] ?? staffRow['id'] ?? '').toString();
-    final email = (staffRow['email'] ?? cleanEmail).toString();
+    final email = (staffRow['email'] ?? cleanIdentifier).toString();
     final otp = (Random.secure().nextInt(900000) + 100000).toString();
     final expiresAt = DateTime.now().toUtc().add(const Duration(minutes: 15));
 
@@ -101,11 +112,10 @@ class SupabaseService {
   /// Verifies the OTP entered by the staff member against RPC or staff_auth_otps table.
   Future<StaffMember> verifyOtp(String identifier, String otpCode) async {
     final cleanIdentifier = identifier.trim();
-    final cleanEmail = cleanIdentifier.toLowerCase();
     final cleanOtp = otpCode.trim();
 
     if (kDebugMode) {
-      print('🚀 Verifying OTP for "$cleanIdentifier" (entered code: $cleanOtp)');
+      print('🚀 Verifying OTP "$cleanOtp" for identifier "$cleanIdentifier"');
     }
 
     // 1. Try RPC verify_staff_otp first
@@ -127,70 +137,100 @@ class SupabaseService {
       }
     } catch (rpcErr) {
       if (kDebugMode) {
-        print('⚠️ RPC verify_staff_otp unavailable or failed ($rpcErr). Using direct table verification...');
+        print('⚠️ RPC verify_staff_otp skipped: $rpcErr');
       }
     }
 
-    // 2. Direct DB verification against staff_auth_otps table
-    List<Map<String, dynamic>> otpRows = [];
-    try {
-      final res = await _client
-          .from('staff_auth_otps')
-          .select()
-          .or('email.ilike.$cleanEmail,staff_id.eq.$cleanIdentifier')
-          .order('expires_at', ascending: false)
-          .limit(10);
-      otpRows = List<Map<String, dynamic>>.from(res);
-    } catch (e) {
-      if (kDebugMode) print('⚠️ Query staff_auth_otps with .or failed ($e). Trying email query...');
-      try {
-        final res = await _client
-            .from('staff_auth_otps')
-            .select()
-            .ilike('email', cleanEmail)
-            .order('expires_at', ascending: false)
-            .limit(10);
-        otpRows = List<Map<String, dynamic>>.from(res);
-      } catch (e2) {
-        if (kDebugMode) print('⚠️ Query staff_auth_otps by email failed: $e2');
-      }
-    }
+    // 2. Resolve staff profile first
+    Map<String, dynamic>? staffRow = await _findStaffMember(cleanIdentifier);
 
-    if (otpRows.isEmpty) {
+    // 3. Query staff_auth_otps for candidate rows
+    List<Map<String, dynamic>> candidateOtpRows = [];
+
+    // A. Query by resolved staff email
+    if (staffRow != null && staffRow['email'] != null) {
       try {
-        final res = await _client
+        final rows = await _client
             .from('staff_auth_otps')
             .select()
-            .eq('staff_id', cleanIdentifier)
-            .order('expires_at', ascending: false)
+            .ilike('email', staffRow['email'].toString())
             .limit(10);
-        otpRows = List<Map<String, dynamic>>.from(res);
+        candidateOtpRows.addAll(List<Map<String, dynamic>>.from(rows));
       } catch (_) {}
     }
 
-    if (otpRows.isEmpty) {
+    // B. Query by cleanIdentifier directly as email
+    if (candidateOtpRows.isEmpty && cleanIdentifier.contains('@')) {
+      try {
+        final rows = await _client
+            .from('staff_auth_otps')
+            .select()
+            .ilike('email', cleanIdentifier)
+            .limit(10);
+        candidateOtpRows.addAll(List<Map<String, dynamic>>.from(rows));
+      } catch (_) {}
+    }
+
+    // C. Query by staff_id
+    if (candidateOtpRows.isEmpty && staffRow != null) {
+      final staffIdVal = staffRow['staff_id'] ?? staffRow['id'];
+      if (staffIdVal != null) {
+        try {
+          final rows = await _client
+              .from('staff_auth_otps')
+              .select()
+              .eq('staff_id', staffIdVal.toString())
+              .limit(10);
+          candidateOtpRows.addAll(List<Map<String, dynamic>>.from(rows));
+        } catch (_) {}
+      }
+    }
+
+    // D. Direct query by cleanIdentifier as staff_id
+    if (candidateOtpRows.isEmpty) {
+      try {
+        final rows = await _client
+            .from('staff_auth_otps')
+            .select()
+            .eq('staff_id', cleanIdentifier)
+            .limit(10);
+        candidateOtpRows.addAll(List<Map<String, dynamic>>.from(rows));
+      } catch (_) {}
+    }
+
+    // E. Universal Fallback: Query staff_auth_otps directly by OTP code!
+    if (candidateOtpRows.isEmpty) {
+      try {
+        final rows = await _client
+            .from('staff_auth_otps')
+            .select()
+            .eq('otp', cleanOtp)
+            .limit(5);
+        candidateOtpRows.addAll(List<Map<String, dynamic>>.from(rows));
+      } catch (_) {}
+    }
+
+    if (candidateOtpRows.isEmpty) {
       throw Exception('No OTP request found for this account. Please request a new code.');
     }
 
+    // 4. Validate OTP match and expiration
     final now = DateTime.now().toUtc();
     Map<String, dynamic>? matchingOtpRow;
 
-    for (final row in otpRows) {
-      final storedOtp = (row['otp'] ?? '').toString().trim();
-      final expiresAtStr = row['expires_at']?.toString();
-      DateTime? expiresAt;
-      if (expiresAtStr != null) {
-        expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
-      }
-
+    for (final row in candidateOtpRows) {
+      final storedOtp = (row['otp'] ?? row['otp_code'] ?? row['code'] ?? '').toString().trim();
       if (storedOtp == cleanOtp) {
-        // Allow up to 10 minutes grace for server/device clock drift
-        if (expiresAt == null || expiresAt.add(const Duration(minutes: 10)).isAfter(now)) {
-          matchingOtpRow = row;
-          break;
-        } else {
-          throw Exception('This OTP has expired. Please request a new code.');
+        final expStr = row['expires_at'] ?? row['expiry'];
+        if (expStr != null) {
+          final exp = DateTime.tryParse(expStr.toString())?.toUtc();
+          // Allow 15 minutes grace period for clock drift
+          if (exp != null && exp.add(const Duration(minutes: 15)).isBefore(now)) {
+            throw Exception('This OTP has expired. Please request a new code.');
+          }
         }
+        matchingOtpRow = row;
+        break;
       }
     }
 
@@ -198,27 +238,12 @@ class SupabaseService {
       throw Exception('The verification code you entered is incorrect. Please try again.');
     }
 
-    // 3. Fetch staff profile from staff_members
-    final matchedStaffId = (matchingOtpRow['staff_id'] ?? '').toString();
-    final matchedEmail = (matchingOtpRow['email'] ?? cleanEmail).toString();
-
-    Map<String, dynamic>? staffRow;
-    try {
-      final rows = await _client
-          .from('staff_members')
-          .select()
-          .or('email.ilike.$matchedEmail,staff_id.eq.$matchedStaffId,id.eq.$matchedStaffId')
-          .limit(1);
-      if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
-    } catch (_) {
-      try {
-        final rows = await _client
-            .from('staff_members')
-            .select()
-            .ilike('email', matchedEmail)
-            .limit(1);
-        if (rows.isNotEmpty) staffRow = Map<String, dynamic>.from(rows.first);
-      } catch (_) {}
+    // 5. If staffRow was not resolved earlier, resolve from the matched OTP row!
+    if (staffRow == null) {
+      final otpEmail = matchingOtpRow['email']?.toString();
+      final otpStaffId = matchingOtpRow['staff_id']?.toString();
+      if (otpEmail != null) staffRow = await _findStaffMember(otpEmail);
+      if (staffRow == null && otpStaffId != null) staffRow = await _findStaffMember(otpStaffId);
     }
 
     if (staffRow == null) {
