@@ -79,27 +79,25 @@ class StaffMember extends Equatable {
   /// - `pin_hash`  → `pinHash`  (fallback: `pinHash`  camelCase)
   /// - `tier_level`→ `tierLevel`(fallback: `tierLevel` camelCase)
   factory StaffMember.fromJson(Map<String, dynamic> json) {
-    // Resolve each field using snake_case first, falling back to camelCase.
-    final rawStaffId =
-        (json['staff_id'] ?? json['staffId']) as String? ?? '';
-    final rawBranchId =
-        (json['branch_id'] ?? json['branchId']) as String?;
-    final rawIsActive =
-        (json['is_active'] ?? json['isActive']) as bool? ?? true;
-    final rawPinHash =
-        (json['pin_hash'] ?? json['pinHash']) as String?;
-    final rawTierLevel =
-        (json['tier_level'] ?? json['tierLevel']) as String? ?? 'Unknown';
-    final rawFullName =
-        (json['full_name'] ?? json['fullName']) as String?;
-    final rawVenueId =
-        (json['venue_id'] ?? json['venueId']) as String?;
-    final rawRole = json['role'] as String?;
+    // Resolve each field using safe toString conversions to prevent int/String type cast errors.
+    final rawId = (json['id'] ?? '').toString();
+    final rawStaffId = (json['staff_id'] ?? json['staffId'] ?? '').toString();
+    final rawBranchId = (json['branch_id'] ?? json['branchId'])?.toString();
+    final rawIsActive = json['is_active'] is bool
+        ? json['is_active'] as bool
+        : (json['isActive'] is bool ? json['isActive'] as bool : true);
+    final rawPinHash = (json['pin_hash'] ?? json['pinHash'])?.toString();
+    final rawTierLevel = (json['tier_level'] ?? json['tierLevel'] ?? 'Tier A').toString();
+    final rawFullName = (json['full_name'] ?? json['fullName'])?.toString();
+    final rawVenueId = (json['venue_id'] ?? json['venueId'])?.toString();
+    final rawRole = json['role']?.toString();
+    final rawName = (json['name'] ?? json['full_name'] ?? 'Staff').toString();
+    final rawEmail = (json['email'] ?? '').toString();
     final rawCreatedAt = json['created_at'] != null
-        ? DateTime.tryParse(json['created_at'] as String)
+        ? DateTime.tryParse(json['created_at'].toString())
         : null;
 
-    // Permissions may be absent from slim RPC responses — use defaults.
+    // Permissions may be absent from slim responses — use defaults.
     final permsJson = json['permissions'] as Map<String, dynamic>?;
     final permissions = permsJson != null
         ? StaffRolesPermissions.fromJson(permsJson)
@@ -109,11 +107,11 @@ class StaffMember extends Equatable {
           );
 
     return StaffMember(
-      id: json['id'] as String? ?? '',
+      id: rawId,
       staffId: rawStaffId,
-      name: json['name'] as String? ?? '',
+      name: rawName,
       fullName: rawFullName,
-      email: json['email'] as String? ?? '',
+      email: rawEmail,
       role: rawRole,
       pinHash: rawPinHash,
       branchId: rawBranchId,
