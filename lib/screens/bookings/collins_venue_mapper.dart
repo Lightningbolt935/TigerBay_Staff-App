@@ -1,0 +1,58 @@
+﻿/// Production mapping of TigerBay branch names → DesignMyNight Collins Venue IDs.
+///
+/// Keys are normalised (trimmed + lower-cased) so callers do not need to worry
+/// about casing or whitespace. Both the short and full "TigerBay <name>" forms
+/// are included so the lookup works regardless of how the branch name is stored
+/// in the Supabase `branches` table.
+///
+/// Fallback: if an unrecognised branch name is passed, the Kingsbury venue ID
+/// is returned so the user always sees *something* rather than a blank WebView.
+class CollinsVenueMapper {
+  CollinsVenueMapper._();
+
+  static const Map<String, String> _venueMap = {
+    // Kingsbury
+    'kingsbury': '5d5e6d8d0b1083654f5080cd',
+    'tigerbay kingsbury': '5d5e6d8d0b1083654f5080cd',
+
+    // Hounslow
+    'hounslow': '6973724f9c12d51f4f2dd402',
+    'tigerbay hounslow': '6973724f9c12d51f4f2dd402',
+
+    // Enfield
+    'enfield': '663e2d5f170c331d9b554b3f',
+    'tigerbay enfield': '663e2d5f170c331d9b554b3f',
+
+    // Hanger Lane
+    'hanger lane': '5d5e6db30b108365ab6d9c5f',
+    'hanger_lane': '5d5e6db30b108365ab6d9c5f',
+    'tigerbay hanger lane': '5d5e6db30b108365ab6d9c5f',
+  };
+
+  /// DesignMyNight widget base URL.
+  static const String widgetBaseUrl =
+      'https://widgets.designmynight.com';
+
+  /// Returns the production DesignMyNight Collins Venue ID for [branchTitle].
+  ///
+  /// Lookup is case- and whitespace-insensitive. Falls back to the Kingsbury
+  /// ID when no match is found.
+  static String getCollinsId(String branchTitle) {
+    final key = branchTitle.trim().toLowerCase();
+    return _venueMap[key] ?? '5d5e6d8d0b1083654f5080cd';
+  }
+
+  /// Builds the full Collins widget URL for [branchTitle].
+  static String widgetUrlFor(String branchTitle) {
+    final venueId = getCollinsId(branchTitle);
+    return '$widgetBaseUrl/v2/bookings?venue=$venueId&type=widget';
+  }
+
+  /// Returns all mapped branch display names (original casing).
+  static List<String> get mappedBranches => const [
+        'TigerBay Kingsbury',
+        'TigerBay Hounslow',
+        'TigerBay Enfield',
+        'TigerBay Hanger Lane',
+      ];
+}

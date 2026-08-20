@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  iOS 17+ Privacy Manifest — required for App Store submission.
+	  Declare every "Required Reason API" your app touches and every
+	  category of data you collect.  Missing declarations are caught by
+	  App Store review automation and cause binary rejection.
+	-->
+
+	<!-- ── Required Reason API Declarations ─────────────────────────────── -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!--
+		  NSUserDefaults — used by flutter_secure_storage (via SharedPreferences
+		  shim) to cache the device-binding token and the active session.
+		  Reason CA92.1: "Declare that the app uses the API for app functionality
+		  that is not advertising."
+		-->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- ── Collected Data Types ──────────────────────────────────────────── -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!--
+		  Precise Location — collected to evaluate the staff member's GPS
+		  coordinates against the branch geofence for attendance check-in/out.
+		  Linked to account: YES (associated with the authenticated staff record).
+		  Used for tracking: NO (not shared with advertisers or used for profiling).
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- ── Tracking Declaration ──────────────────────────────────────────── -->
+	<!--
+	  NSPrivacyTracking: false — this app does not engage in cross-app
+	  or cross-website tracking as defined by Apple's App Tracking Transparency
+	  framework.  No IDFA is accessed; no data is shared with data brokers.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+</dict>
+</plist>

@@ -1,0 +1,66 @@
+name: tigerbay_staff_app
+description: TigerBay Staff App - attendance, loyalty, and table control for TigerBay staff.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Supabase — auth, OTP flow, and live permission RPCs
+  supabase_flutter: ^2.8.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Networking
+  dio: ^5.4.3+1
+
+  # Geofencing / location
+  geolocator: ^12.0.0
+
+
+  # Runtime permissions (location, network)
+  permission_handler: ^11.3.1
+
+  # QR scanning
+  mobile_scanner: ^5.1.1
+
+  # Secure PIN storage
+  flutter_secure_storage: ^9.2.2
+
+  # Hashing for PIN
+  crypto: ^3.0.3
+
+  # Value equality for models
+  equatable: ^2.0.5
+
+  # Date/time formatting
+  intl: ^0.19.0
+
+  # Biometric / passcode authentication for device-release flow
+  local_auth: ^2.3.0
+
+  # Access Collins booking webview
+  webview_flutter: ^4.10.0
+
+  # QR code generation for reward redemption display
+  qr_flutter: ^4.1.0
+
+  # Image picker for catalog/reward image editing
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
