@@ -26,6 +26,9 @@ jobs:
       - name: Run Dart Analyzer
         run: flutter analyze lib/
 
+      - name: Run Unit Tests
+        run: flutter test
+
   build-android:
     name: Build Android APK
     needs: [code-quality]
@@ -54,7 +57,11 @@ jobs:
           fi
 
       - name: Ensure gradlew is executable
-        run: chmod +x android/gradlew
+        run: |
+          if [ -f android/gradlew ]; then
+            chmod +x android/gradlew
+          fi
+
 
       - name: Install Dependencies
         run: flutter pub get
