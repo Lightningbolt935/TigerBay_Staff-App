@@ -23,14 +23,23 @@ class StaffRolesPermissions extends Equatable {
   });
 
   factory StaffRolesPermissions.fromJson(Map<String, dynamic> json) {
+    // Tolerant bool read: DB booleans arrive as bool, some RPC shapes as strings.
+    bool asBool(Object? v) => v is bool ? v : v?.toString().toLowerCase() == 'true';
+
+    // Accept BOTH camelCase (app-side JSON) and snake_case (raw
+    // staff_roles_permissions rows) — previously a raw table row parsed to
+    // ALL-FALSE permissions, causing spurious "Access Denied" for every tier.
+    bool readFlag(String camel, String snake) =>
+        asBool(json[camel]) || asBool(json[snake]);
+
     return StaffRolesPermissions(
-      id: json['id'] as String,
-      tierName: json['tierName'] as String,
-      canAlterBooking: json['canAlterBooking'] as bool? ?? false,
-      canIssuePoints: json['canIssuePoints'] as bool? ?? false,
-      canRedeemVouchers: json['canRedeemVouchers'] as bool? ?? false,
-      canOverrideTables: json['canOverrideTables'] as bool? ?? false,
-      canViewAnalytics: json['canViewAnalytics'] as bool? ?? false,
+      id: (json['id'] ?? '').toString(),
+      tierName: (json['tierName'] ?? json['tier_name'] ?? 'Tier').toString(),
+      canAlterBooking: readFlag('canAlterBooking', 'can_alter_booking'),
+      canIssuePoints: readFlag('canIssuePoints', 'can_issue_points'),
+      canRedeemVouchers: readFlag('canRedeemVouchers', 'can_redeem_vouchers'),
+      canOverrideTables: readFlag('canOverrideTables', 'can_override_tables'),
+      canViewAnalytics: readFlag('canViewAnalytics', 'can_view_analytics'),
     );
   }
 

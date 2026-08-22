@@ -28,6 +28,18 @@ android {
 
     buildTypes {
         release {
+            // Internal distribution: R8 shrinking disabled. Full-mode R8
+            // renamed ML Kit barcode classes and broke Google's component
+            // registry, crashing scanner start with a null-object NPE
+            // (see proguard-rules.pro for the rules if it is re-enabled).
+            // Both flags must be off — resource shrinking requires code
+            // shrinking, and the Flutter Gradle plugin enables both by default.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")

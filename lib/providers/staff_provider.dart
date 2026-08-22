@@ -79,7 +79,15 @@ class StaffProvider extends ChangeNotifier {
 
     _setLoading(true);
     try {
-      _branch = await _api.getBranch(effectiveBranchId);
+      final fetched = await _api.getBranch(effectiveBranchId);
+      // getBranch returns null on ANY network/parse failure (it swallows
+      // DioException) — fall back in that case too so Branch is NEVER null
+      // after this call. A null branch silently disables the entire
+      // attendance geofence flow.
+      _branch = fetched ?? _fallbackBranch;
+      if (fetched == null) {
+        debugPrint('[StaffProvider] getBranch returned null, using fallback branch.');
+      }
       _error = null;
     } catch (e) {
       // API unreachable or unknown ID — use fallback so UI is never blank.

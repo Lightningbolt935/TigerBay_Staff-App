@@ -17,18 +17,22 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> {
   int _index = 0;
 
-  final _tabs = const [
-    HomeScreen(),
-    AttendanceScreen(),
-    ScanHubScreen(mode: ScanMode.issue),
-    TableControlScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return SessionDeviceGuard(
       child: Scaffold(
-        body: IndexedStack(index: _index, children: _tabs),
+        body: IndexedStack(
+          index: _index,
+          children: [
+            const HomeScreen(),
+            const AttendanceScreen(),
+            // `visible` tells the scanner whether its tab is on-screen —
+            // the camera must NOT hold the hardware while another tab
+            // (or a pushed second scanner) is active.
+            ScanHubScreen(mode: ScanMode.issue, visible: _index == 2),
+            const TableControlScreen(),
+          ],
+        ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),

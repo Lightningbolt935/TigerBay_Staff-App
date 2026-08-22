@@ -29,9 +29,9 @@ class CollinsVenueMapper {
     'tigerbay hanger lane': '5d5e6db30b108365ab6d9c5f',
   };
 
-  /// DesignMyNight widget base URL.
+  /// DesignMyNight booking page base URL.
   static const String widgetBaseUrl =
-      'https://widgets.designmynight.com';
+      'https://www.designmynight.com';
 
   /// Returns the production DesignMyNight Collins Venue ID for [branchTitle].
   ///
@@ -42,10 +42,13 @@ class CollinsVenueMapper {
     return _venueMap[key] ?? '5d5e6d8d0b1083654f5080cd';
   }
 
-  /// Builds the full Collins widget URL for [branchTitle].
+  /// Builds the full Collins booking URL for [branchTitle].
+  ///
+  /// Uses the official DesignMyNight booking-URL format:
+  /// https://www.designmynight.com/book?venue_id=VENUEID&source=partner
   static String widgetUrlFor(String branchTitle) {
     final venueId = getCollinsId(branchTitle);
-    return '$widgetBaseUrl/v2/bookings?venue=$venueId&type=widget';
+    return '$widgetBaseUrl/book?venue_id=$venueId&source=partner';
   }
 
   /// Returns all mapped branch display names (original casing).

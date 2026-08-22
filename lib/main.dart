@@ -21,6 +21,12 @@ void main() async {
   runApp(const TigerBayStaffApp());
 }
 
+/// Global route observer — lets screens react to being covered/uncovered
+/// by pushed routes (e.g. pause the camera when Billing opens on top of
+/// the scanner). Registered on MaterialApp below.
+final RouteObserver<ModalRoute<void>> routeObserver =
+    RouteObserver<ModalRoute<void>>();
+
 class TigerBayStaffApp extends StatelessWidget {
   const TigerBayStaffApp({super.key});
 
@@ -43,6 +49,7 @@ class TigerBayStaffApp extends StatelessWidget {
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
+        navigatorObservers: [routeObserver],
         home: const AppRouter(),
       ),
     );

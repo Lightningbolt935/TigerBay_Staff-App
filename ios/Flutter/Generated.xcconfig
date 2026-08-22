@@ -1,7 +1,6 @@
 // This is a generated file; do not edit or check into version control.
-FLUTTER_ROOT=C:\Users\ojass\OneDrive\Desktop\flutter
-FLUTTER_APPLICATION_PATH=C:\Users\ojass\OneDrive\Desktop\tigerbay_staff_app\tigerbay_staff_app
-FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=C:\Users\ojass\OneDrive\Desktop\tigerbay_staff_app\tigerbay_staff_app\ios\Flutter\ephemeral\Packages\.packages\FlutterFramework
+FLUTTER_ROOT=C:\flutter_windows_3.41.6-stable\flutter
+FLUTTER_APPLICATION_PATH=C:\Users\Snehil Sahay\Desktop\TIGER_BAY_CUST\tigerbay_staff_app
 COCOAPODS_PARALLEL_CODE_SIGN=true
 FLUTTER_TARGET=lib\main.dart
 FLUTTER_BUILD_DIR=build

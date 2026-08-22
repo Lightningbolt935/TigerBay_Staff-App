@@ -9,8 +9,7 @@ import 'collins_venue_mapper.dart';
 /// inside a [WebViewController].
 ///
 /// Key behaviours:
-/// - Loads the correct widget URL for the staff member's assigned branch.
-/// - Sets `baseUrl: 'https://widgets.designmynight.com'` for session cookies.
+/// - Loads the correct booking URL for the staff member's assigned branch.
 /// - Intercepts navigation: Stripe / 3DS bank redirects are allowed through;
 ///   booking confirmation pages (booking-confirmed / thank-you) are
 ///   intercepted to show an in-app success screen.
@@ -79,12 +78,28 @@ class _CollinsWebViewScreenState extends State<CollinsWebViewScreen> {
             }
           },
           onWebResourceError: (error) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _errorMessage = 'Unable to load booking page. Check your connection.';
-              });
+            // Only surface a full-screen error when the MAIN page itself
+            // fails. Sub-resource failures (ads/analytics/fonts/scripts on
+            // the DesignMyNight page) must NOT blank the whole screen —
+            // the widget usually renders fine without them.
+            bool isMainFrame = false;
+            try {
+              isMainFrame = error.isForMainFrame ?? _isLoading;
+            } catch (_) {
+              // Not exposed on all platforms; fall back to treating the
+              // error as fatal only when the page hasn't finished loading.
+              isMainFrame = _isLoading;
             }
+            debugPrint(
+              '🌐 [CollinsWebView] resource error '
+              '(mainFrame=$isMainFrame, code=${error.errorCode}): '
+              '${error.description} @ ${error.url ?? 'unknown url'}',
+            );
+            if (!isMainFrame || !mounted) return;
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Unable to load booking page. Check your connection.';
+            });
           },
           onNavigationRequest: (request) {
             final url = request.url.toLowerCase();

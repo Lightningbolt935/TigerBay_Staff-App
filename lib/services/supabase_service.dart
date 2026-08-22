@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/staff_member.dart';
+import '../models/staff_roles_permissions.dart';
 import '../models/permission_check_result.dart';
 
 /// Thin wrapper around [SupabaseClient] providing typed methods for
@@ -248,13 +249,12 @@ class SupabaseService {
       final storedOtp = (row['otp'] ?? row['otp_code'] ?? row['code'] ?? '').toString().trim();
       if (storedOtp == cleanOtp) {
         final expStr = row['expires_at'] ?? row['expiry'];
-        if (expStr != null) {
-          final exp = DateTime.tryParse(expStr.toString())?.toUtc();
-          // Allow 15 minutes grace period for clock drift
-          if (exp != null && exp.add(const Duration(minutes: 15)).isBefore(now)) {
-            throw Exception('This OTP has expired. Please request a new code or use dev OTP 000000.');
+          if (expStr != null) {
+            final exp = DateTime.tryParse(expStr.toString())?.toUtc();
+            if (exp != null && exp.isBefore(now)) {
+              throw Exception('This OTP has expired. Please request a new code or use dev OTP 000000.');
+            }
           }
-        }
         matchingOtpRow = row;
         break;
       }
@@ -286,6 +286,74 @@ class SupabaseService {
     }
 
     return staff;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cached Permission Enrichment
+  // ---------------------------------------------------------------------------
+
+  /// Fetches the raw `staff_roles_permissions` row for a tier label
+  /// (e.g. 'Tier A'). Tolerates space/underscore naming variants.
+  Future<Map<String, dynamic>?> fetchTierPermissions(String tierName) async {
+    final clean = tierName.trim();
+    if (clean.isEmpty) return null;
+    final candidates = <String>{
+      clean,
+      clean.replaceAll(' ', '_'),
+      clean.replaceAll('_', ' '),
+    };
+    for (final candidate in candidates) {
+      try {
+        final rows = await _client
+            .from('staff_roles_permissions')
+            .select()
+            .ilike('tier_name', candidate)
+            .limit(1);
+        if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Permissive fallback used whenever no `staff_roles_permissions` row
+  /// matches: deployments that never configured tiers (e.g. a single
+  /// owner-staff account) must not be locked out of core actions.
+  Map<String, dynamic> _permissiveDefaults(String tierName) => {
+        'tier_name': tierName,
+        'can_alter_booking': true,
+        'can_issue_points': true,
+        'can_redeem_vouchers': true,
+        'can_override_tables': true,
+        'can_view_analytics': true,
+      };
+
+  /// Attaches the staff member's TIER PERMISSIONS to the cached session.
+  ///
+  /// The login/session rows returned from `staff_members` do NOT embed a
+  /// `permissions` object, so without this call every cached guard reads
+  /// all-false and shows "Access Denied" even for fully privileged tiers.
+  ///
+  /// Policy: use the matched tier row; if NONE matches (table empty, tier
+  /// unset, or label mismatch), grant permissive defaults instead of locking
+  /// the user out. Restrict access by adding proper rows to the table.
+  Future<StaffMember> enrichStaffPermissions(StaffMember staff) async {
+    try {
+      final raw = await fetchTierPermissions(staff.tierLevel);
+      if (raw != null) {
+        return staff.copyWith(permissions: StaffRolesPermissions.fromJson(raw));
+      }
+
+      debugPrint(
+          'ℹ️ [SupabaseService] No staff_roles_permissions row for tier "${staff.tierLevel}" — granting permissive defaults.');
+      return staff.copyWith(
+          permissions: StaffRolesPermissions.fromJson(
+              _permissiveDefaults(staff.tierLevel)));
+    } catch (e) {
+      debugPrint('⚠️ [SupabaseService] Tier permission fetch failed ($e) — granting permissive defaults.');
+      return staff.copyWith(
+          permissions: StaffRolesPermissions.fromJson(
+              _permissiveDefaults(staff.tierLevel)));
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -363,6 +431,47 @@ class SupabaseService {
       }
       rethrow;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Customer Resolution (QR / member code)
+  // ---------------------------------------------------------------------------
+
+  /// Resolves a scanned/entered customer identifier to a `profiles` row.
+  /// Tries member_code → UUID id → email — mirroring the server-side
+  /// `allocate_points_by_member_code` lookup order so both flows behave
+  /// identically. Returns null when no customer matches.
+  Future<Map<String, dynamic>?> findCustomerByIdentifier(String identifier) async {
+    final clean = identifier.trim();
+    if (clean.isEmpty) return null;
+
+    // 1. Match the unique 6-digit member_code (what the customer QR encodes).
+    try {
+      final row = await _client
+          .from('profiles')
+          .select()
+          .eq('member_code', clean)
+          .maybeSingle();
+      if (row != null) return Map<String, dynamic>.from(row);
+    } catch (_) {}
+
+    // 2. Match the profile UUID ('uid' field of the customer QR payload).
+    try {
+      final row = await _client.from('profiles').select().eq('id', clean).maybeSingle();
+      if (row != null) return Map<String, dynamic>.from(row);
+    } catch (_) {}
+
+    // 3. Manual-entry fallback: match by email.
+    try {
+      final row = await _client
+          .from('profiles')
+          .select()
+          .ilike('email', clean)
+          .maybeSingle();
+      if (row != null) return Map<String, dynamic>.from(row);
+    } catch (_) {}
+
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -459,12 +568,15 @@ class SupabaseService {
 
   // ── Rewards ─────────────────────────────────────────────────────────────────
 
-  /// Fetches all rows from the `rewards` table ordered by points_required.
+  /// Fetches active rewards ordered by cost. The live `rewards` table uses
+  /// `strips_cost` (same column the customer app orders by) — the previous
+  /// `points_required` ordering crashed with PGRST42701 (column not found).
   Future<List<Map<String, dynamic>>> getRewards() async {
     final response = await _client
         .from('rewards')
         .select()
-        .order('points_required');
+        .eq('is_active', true)
+        .order('strips_cost');
     return List<Map<String, dynamic>>.from(response as List);
   }
 

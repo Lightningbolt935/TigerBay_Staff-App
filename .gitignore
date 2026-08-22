@@ -44,7 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Supabase
+# Flutter/iOS/Android ephemeral
+ios/Flutter/ephemeral/
+**/ios/Flutter/ephemeral/
+*.apk
+*.aab
+
+# Supabase & Environment secrets
 supabase/.temp/
 .env
-
+.env.*
+!.env.example

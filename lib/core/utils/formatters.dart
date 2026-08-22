@@ -24,6 +24,9 @@ class Formatters {
 
   static String date(DateTime dt) => DateFormat('MMM d, yyyy').format(dt);
 
+  /// Short weekday label, e.g. "Sat, Aug 22".
+  static String dayLabel(DateTime dt) => DateFormat('EEE, MMM d').format(dt);
+
   /// Returns up to 2 uppercase initials from [fullName].
   ///
   /// Null-safe: returns 'ST' (Staff fallback) if [fullName] is null/empty.

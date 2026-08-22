@@ -1,0 +1,67 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# TigerBay Staff App — Azure DevOps CI/CD Pipeline
+# ═══════════════════════════════════════════════════════════════════════════
+trigger:
+  branches:
+    include:
+      - main
+      - master
+  tags:
+    include:
+      - v*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: tigerbay-staff-production-variables # Azure DevOps Variable Group
+  - name: FLUTTER_CHANNEL
+    value: 'stable'
+
+stages:
+  - stage: Quality
+    displayName: 'Quality & Test Gate'
+    jobs:
+      - job: LintAndAnalyze
+        displayName: 'Analyze Staff App'
+        steps:
+          - task: FlutterInstall@0
+            inputs:
+              mode: 'auto'
+              channel: '$(FLUTTER_CHANNEL)'
+            displayName: 'Install Flutter'
+
+          - script: flutter pub get
+            displayName: 'Install Dependencies'
+
+          - script: flutter analyze lib/
+            displayName: 'Run Dart Analyzer'
+
+  - stage: BuildAndDeploy
+    displayName: 'Production Build & Azure Deploy'
+    dependsOn: Quality
+    condition: succeeded()
+    jobs:
+      - job: BuildWeb
+        displayName: 'Build Staff Web Portal'
+        steps:
+          - task: FlutterInstall@0
+            inputs:
+              mode: 'auto'
+              channel: '$(FLUTTER_CHANNEL)'
+
+          - script: flutter pub get
+            displayName: 'Install Dependencies'
+
+          - script: |
+              flutter build web --release \
+                --dart-define=SUPABASE_URL="$(SUPABASE_URL)" \
+                --dart-define=SUPABASE_ANON_KEY="$(SUPABASE_ANON_KEY)" \
+                --dart-define=APP_ENV="production"
+            displayName: 'Compile Production Flutter Web Bundle'
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/build/web'
+              artifact: 'tigerbay-staff-web-bundle'
+            displayName: 'Publish Web Artifact'

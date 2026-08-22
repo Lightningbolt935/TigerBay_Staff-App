@@ -81,18 +81,43 @@ class _StaffLeaveScreenState extends State<StaffLeaveScreen>
 
     try {
       final venueId = staff.venueId ?? staff.branchId;
+      final client = Supabase.instance.client;
+      final leaveType = _selectedLeaveType.toLowerCase();
+      final startDateStr = DateFormat('yyyy-MM-dd').format(_startDate!);
+      final endDateStr = DateFormat('yyyy-MM-dd').format(_endDate!);
+      final reason = _reasonController.text.trim();
 
-      await Supabase.instance.client.from('staff_leave_requests').insert({
-        'staff_id': staff.id,
-        if (venueId != null && venueId.isNotEmpty) 'venue_id': venueId,
-        'leave_type': _selectedLeaveType.toLowerCase(),
-        'start_date': DateFormat('yyyy-MM-dd').format(_startDate!),
-        'end_date': DateFormat('yyyy-MM-dd').format(_endDate!),
-        'reason': _reasonController.text.trim(),
-        'status': 'pending',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+      bool submitted = false;
+
+      // 1. Try RPC (SECURITY DEFINER — bypasses RLS)
+      try {
+        await client.rpc('insert_staff_leave_request', params: {
+          'p_staff_id': staff.id,
+          'p_venue_id': (venueId != null && venueId.isNotEmpty) ? venueId : null,
+          'p_leave_type': leaveType,
+          'p_start_date': startDateStr,
+          'p_end_date': endDateStr,
+          'p_reason': reason,
+        });
+        submitted = true;
+        debugPrint('✅ [Leave] Submitted via RPC.');
+      } catch (rpcErr) {
+        debugPrint('⚠️ [Leave] RPC failed: $rpcErr');
+      }
+
+      // 2. Fallback: direct insert (works when RLS is disabled or policy allows)
+      if (!submitted) {
+        await client.from('staff_leave_requests').insert({
+          'staff_id': staff.id,
+          if (venueId != null && venueId.isNotEmpty) 'venue_id': venueId,
+          'leave_type': leaveType,
+          'start_date': startDateStr,
+          'end_date': endDateStr,
+          'reason': reason,
+          'status': 'pending',
+        });
+        debugPrint('✅ [Leave] Submitted via direct insert.');
+      }
 
       _reasonController.clear();
       setState(() {

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/staff_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/supabase_service.dart';
 
 /// Point Attribution / Bill Processing Screen.
 ///
@@ -15,7 +16,12 @@ class StaffBillingPointScreen extends StatefulWidget {
   /// Optional member code pre-filled via QR scan from [ScanHubScreen].
   final String? initialMemberCode;
 
-  const StaffBillingPointScreen({super.key, this.initialMemberCode});
+  /// Optional resolved member name (from QR scan lookup) shown for
+  /// identity confirmation before staff credit any points.
+  final String? initialMemberName;
+
+  const StaffBillingPointScreen(
+      {super.key, this.initialMemberCode, this.initialMemberName});
 
   @override
   State<StaffBillingPointScreen> createState() =>
@@ -26,17 +32,75 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _memberCodeController;
   final _billAmountController = TextEditingController();
+  final SupabaseService _supabase = SupabaseService();
   bool _isProcessing = false;
+  bool _verifying = false;
+
+  /// Resolved member name shown in the identity-confirmation banner.
+  String? _resolvedMemberName;
 
   @override
   void initState() {
     super.initState();
+    // Pre-fill BEFORE attaching the listener so the initial QR-provided
+    // code doesn't immediately clear its own confirmation banner.
     _memberCodeController =
         TextEditingController(text: widget.initialMemberCode ?? '');
+    _resolvedMemberName = widget.initialMemberName;
+    _memberCodeController.addListener(_onCodeChanged);
+  }
+
+  /// When staff edit the code by hand the previously confirmed member no
+  /// longer matches — drop the banner so a stale name can't mislead anyone.
+  void _onCodeChanged() {
+    if (_resolvedMemberName != null && mounted) {
+      setState(() => _resolvedMemberName = null);
+    }
+  }
+
+  Future<void> _verifyCode() async {
+    final code = _memberCodeController.text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: AppColors.danger,
+        content: Text('Enter a member code to verify first.'),
+      ));
+      return;
+    }
+    setState(() => _verifying = true);
+    try {
+      final customer = await _supabase.findCustomerByIdentifier(code);
+      if (!mounted) return;
+      setState(() {
+        _resolvedMemberName = customer == null
+            ? null
+            : (customer['full_name'] ??
+                    customer['name'] ??
+                    customer['email'] ??
+                    'Unknown member')
+                .toString();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: customer == null ? AppColors.danger : AppColors.success,
+        content: Text(customer == null
+            ? 'No TigerBay member found for "$code".'
+            : 'Verified: ${_resolvedMemberName ?? 'member'}'),
+      ));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          backgroundColor: AppColors.danger,
+          content: Text('Lookup failed — check your connection and retry.'),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
   }
 
   @override
   void dispose() {
+    _memberCodeController.removeListener(_onCodeChanged);
     _memberCodeController.dispose();
     _billAmountController.dispose();
     super.dispose();
@@ -226,45 +290,24 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
     // C. Calculate Points / Strips earned
     final pointsEarned = (billAmount * multiplier).round();
 
-    // D. Fetch or create loyalty_accounts row
-    int currentBalance = 0;
-    final existingAccount = await client
-        .from('loyalty_accounts')
-        .select()
-        .eq('user_id', customerId)
-        .maybeSingle();
-
-    if (existingAccount != null) {
-      currentBalance = (existingAccount['points_balance'] as int?) ?? 0;
-      final newBalance = currentBalance + pointsEarned;
-      await client
-          .from('loyalty_accounts')
-          .update({
-            'points_balance': newBalance,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('user_id', customerId);
-    } else {
-      await client.from('loyalty_accounts').insert({
-        'user_id': customerId,
-        'points_balance': pointsEarned,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-    }
-
-    final newBalance = currentBalance + pointsEarned;
-
-    // E. Insert transaction record in loyalty_transactions
-    await client.from('loyalty_transactions').insert({
-      'user_id': customerId,
-      'branch_id': venueId.isNotEmpty ? venueId : null,
-      'points': pointsEarned,
-      'type': 'earned',
-      'description': 'Bill award (£${billAmount.toStringAsFixed(2)}) × ${multiplier}x ($tierName)',
-      'spend_amount': billAmount,
-      'created_at': DateTime.now().toIso8601String(),
+    // D+E. ATOMIC AWARD via SECURITY DEFINER RPC.
+    // The live database keeps the customer balance in profiles.strips_balance
+    // with history in strips_ledger — the previous direct writes to
+    // loyalty_accounts / loyalty_transactions failed with PGRST205 because
+    // those tables are not exposed via REST in this project.
+    final result = await client.rpc('award_strips_for_member', params: {
+      'p_member_code': memberCode,
+      'p_strips': pointsEarned,
+      'p_description':
+          'Bill award (£${billAmount.toStringAsFixed(2)}) × ${multiplier}x ($tierName)',
+      'p_staff_id': staffId,
     });
+    final resultMap = Map<String, dynamic>.from(result as Map);
+    if (resultMap['ok'] != true) {
+      throw Exception(
+          'Award rejected by server: ${resultMap['error'] ?? 'unknown error'}');
+    }
+    final newBalance = (resultMap['balance'] as num?)?.toInt() ?? pointsEarned;
 
     // F. Try calling update_loyalty_tier RPC if exists
     try {
@@ -443,6 +486,53 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
               ),
               const SizedBox(height: 28),
 
+              // ---- Member identity confirmation --------------------------
+              if (_resolvedMemberName != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.successBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_user_rounded,
+                          color: AppColors.success, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _resolvedMemberName!,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: AppColors.textPrimary),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.initialMemberName != null
+                                  ? 'Resolved from scanned QR — confirm this is the customer before crediting points.'
+                                  : 'Verified against the TigerBay member database.',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.35,
+                                  color: AppColors.textPrimary
+                                      .withValues(alpha: 0.75)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               // ---- Member code ----------------------------------------
               _sectionLabel('Member Code', Icons.badge_outlined),
               const SizedBox(height: 8),
@@ -453,13 +543,27 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
                   hintText: 'e.g. TB-MEM-001',
                   prefixIcon: const Icon(Icons.credit_card_outlined,
                       color: AppColors.textSecondary),
-                  suffixIcon: widget.initialMemberCode != null
+                  suffixIcon: _resolvedMemberName != null
                       ? const Tooltip(
-                          message: 'Pre-filled via QR scan',
-                          child: Icon(Icons.qr_code_2_outlined,
-                              color: AppColors.gold),
+                          message: 'Identity confirmed',
+                          child: Icon(Icons.check_circle_rounded,
+                              color: AppColors.success),
                         )
-                      : null,
+                      : _verifying
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : IconButton(
+                              tooltip: 'Look up member name',
+                              icon: const Icon(Icons.person_search_rounded,
+                                  color: AppColors.gold),
+                              onPressed: _verifyCode,
+                            ),
                 ),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty)

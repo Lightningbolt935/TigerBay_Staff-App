@@ -71,7 +71,10 @@ class AuthProvider extends ChangeNotifier {
       final json = await _secureStorage.getStaffJson();
       if (json == null || json.isEmpty) return false;
       final decoded = jsonDecode(json) as Map<String, dynamic>;
-      _staff = StaffMember.fromJson(decoded);
+      // Re-fetch tier permissions from the DB — the persisted JSON may be
+      // stale or (historically) never contained permissions at all.
+      _staff = await _supabaseService
+          .enrichStaffPermissions(StaffMember.fromJson(decoded));
       _isSessionLocked = true;
       notifyListeners();
       return true;
@@ -167,7 +170,10 @@ class AuthProvider extends ChangeNotifier {
         _setLoading(false);
         return false;
       }
-      _staff = staffMember;
+      // Attach tier permissions from staff_roles_permissions — the raw
+      // staff_members row does not embed them, and without them every
+      // cached permission guard would deny all actions.
+      _staff = await _supabaseService.enrichStaffPermissions(staffMember);
       _cancelCountdown();
       _error = null;
       _setLoading(false);
