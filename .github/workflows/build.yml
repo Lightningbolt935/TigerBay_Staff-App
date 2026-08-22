@@ -73,6 +73,11 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Patch plugins for AGP compatibility
+        run: |
+          find ~/.pub-cache -name "build.gradle" -type f -exec sed -i "s/proguard-android.txt/proguard-android-optimize.txt/g" {} + 2>/dev/null || true
+
+
       - name: Build Debug APK
         run: flutter build apk --debug
 
