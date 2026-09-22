@@ -11,8 +11,8 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
     this.daysWindow = 14,
   });
 
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateChanged;
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime?> onDateChanged;
 
   /// How many days before/after today to show in the scroll strip.
   final int daysWindow;
@@ -20,15 +20,18 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(96);
 
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _isSameDay(DateTime a, DateTime? b) {
+    if (b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
   Future<void> _openDatePicker(BuildContext context) async {
+    final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: selectedDate ?? today,
+      firstDate: today.subtract(const Duration(days: 365)),
+      lastDate: today.add(const Duration(days: 365)),
     );
     if (picked != null) onDateChanged(picked);
   }
@@ -43,6 +46,8 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
           .add(Duration(days: i - daysWindow)),
     );
 
+    final isAllSelected = selectedDate == null;
+
     return Material(
       color: theme.scaffoldBackgroundColor,
       child: SafeArea(
@@ -55,8 +60,10 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
-                    onPressed: () =>
-                        onDateChanged(selectedDate.subtract(const Duration(days: 1))),
+                    onPressed: () {
+                      final current = selectedDate ?? today;
+                      onDateChanged(current.subtract(const Duration(days: 1)));
+                    },
                   ),
                   Expanded(
                     child: Center(
@@ -64,16 +71,22 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
                         onPressed: () => _openDatePicker(context),
                         icon: const Icon(Icons.calendar_today, size: 16),
                         label: Text(
-                          DateFormat('EEEE, d MMM yyyy').format(selectedDate),
-                          style: theme.textTheme.titleSmall,
+                          selectedDate != null
+                              ? DateFormat('EEEE, d MMM yyyy').format(selectedDate!)
+                              : 'All Bookings (Till Date)',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
-                    onPressed: () =>
-                        onDateChanged(selectedDate.add(const Duration(days: 1))),
+                    onPressed: () {
+                      final current = selectedDate ?? today;
+                      onDateChanged(current.add(const Duration(days: 1)));
+                    },
                   ),
                 ],
               ),
@@ -83,9 +96,21 @@ class BookingFilterBar extends StatelessWidget implements PreferredSizeWidget {
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                itemCount: days.length,
+                itemCount: days.length + 1,
                 itemBuilder: (context, index) {
-                  final day = days[index];
+                  if (index == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        avatar: const Icon(Icons.history, size: 16),
+                        label: const Text('All (Till Date)'),
+                        selected: isAllSelected,
+                        onSelected: (_) => onDateChanged(null),
+                      ),
+                    );
+                  }
+
+                  final day = days[index - 1];
                   final isSelected = _isSameDay(day, selectedDate);
                   final isToday = _isSameDay(day, today);
 

@@ -5,9 +5,14 @@ import '../../../models/venue_booking.dart';
 /// A single booking row: time slot, guest name, party size badge,
 /// assigned table chip, status badge, and deposit status badge.
 class BookingCard extends StatelessWidget {
-  const BookingCard({super.key, required this.booking});
+  const BookingCard({
+    super.key,
+    required this.booking,
+    this.showDate = false,
+  });
 
   final VenueBooking booking;
+  final bool showDate;
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +30,21 @@ class BookingCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Time slot
+                // Time & Date slot
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (showDate)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          booking.formattedDate,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     Text(
                       booking.formattedTime,
                       style: theme.textTheme.titleMedium
@@ -144,9 +160,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         status,
@@ -166,9 +182,9 @@ class _DepositBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

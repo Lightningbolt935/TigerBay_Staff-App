@@ -1,4 +1,4 @@
-﻿/// Production mapping of TigerBay branch names → DesignMyNight Collins Venue IDs.
+/// Production mapping of TigerBay branch names → DesignMyNight Collins Venue IDs.
 ///
 /// Keys are normalised (trimmed + lower-cased) so callers do not need to worry
 /// about casing or whitespace. Both the short and full "TigerBay <name>" forms
@@ -49,6 +49,18 @@ class CollinsVenueMapper {
   static String widgetUrlFor(String branchTitle) {
     final venueId = getCollinsId(branchTitle);
     return '$widgetBaseUrl/book?venue_id=$venueId&source=partner';
+  }
+
+  /// Returns the Supabase integer branch ID for [branchIdentifier] (name, ID, or Collins ID).
+  /// Default is 2 (Kingsbury).
+  static int getBranchNumericId(String? branchIdentifier) {
+    if (branchIdentifier == null || branchIdentifier.trim().isEmpty) return 2;
+    final key = branchIdentifier.trim().toLowerCase();
+    if (key.contains('kingsbury') || key == '5d5e6d8d0b1083654f5080cd' || key == '2') return 2;
+    if (key.contains('hounslow') || key == '6973724f9c12d51f4f2dd402' || key == '1') return 1;
+    if (key.contains('hanger') || key == '5d5e6db30b108365ab6d9c5f' || key == '3') return 3;
+    if (key.contains('enfield') || key == '663e2d5f170c331d9b554b3f' || key == '4') return 4;
+    return int.tryParse(branchIdentifier) ?? 2;
   }
 
   /// Returns all mapped branch display names (original casing).

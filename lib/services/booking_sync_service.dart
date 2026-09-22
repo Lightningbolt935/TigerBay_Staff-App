@@ -15,19 +15,35 @@ class BookingSyncService {
 
   RealtimeChannel? _activeChannel;
 
-  /// Loads all bookings for [branchId] on [date], ordered by time.
+  /// Loads all bookings for [branchId]. If [date] is provided, filters for
+  /// that specific day. If [date] is null, loads all bookings till date ordered
+  /// chronologically (most recent dates first).
   Future<List<VenueBooking>> fetchBranchBookings(
-    int branchId,
-    DateTime date,
-  ) async {
-    final dateOnly = DateTime(date.year, date.month, date.day);
-    final dateString = dateOnly.toIso8601String().split('T').first;
+    int branchId, [
+    DateTime? date,
+  ]) async {
+    if (date != null) {
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      final dateString = dateOnly.toIso8601String().split('T').first;
 
+      final response = await _client
+          .from('bookings')
+          .select()
+          .eq('branch_id', branchId)
+          .eq('booking_date', dateString)
+          .order('booking_time', ascending: true);
+
+      return (response as List)
+          .map((row) => VenueBooking.fromJson(row as Map<String, dynamic>))
+          .toList();
+    }
+
+    // When date is null, load all bookings till date / all time
     final response = await _client
         .from('bookings')
         .select()
         .eq('branch_id', branchId)
-        .eq('booking_date', dateString)
+        .order('booking_date', ascending: false)
         .order('booking_time', ascending: true);
 
     return (response as List)
@@ -39,13 +55,9 @@ class BookingSyncService {
   /// for [branchId], invoking [onUpdate] with a freshly-fetched list
   /// each time something changes. Returns the channel so the caller can
   /// unsubscribe (e.g. in `dispose()`).
-  ///
-  /// Note: this re-fetches today's bookings on every change event rather
-  /// than patching the in-memory list, which keeps ordering/filtering
-  /// correct with negligible cost at typical per-branch booking volumes.
   RealtimeChannel subscribeToBranchBookings(
     int branchId,
-    DateTime date,
+    DateTime? date,
     void Function(List<VenueBooking> bookings) onUpdate,
   ) {
     unsubscribe();

@@ -5,9 +5,11 @@ import '../../services/booking_sync_service.dart';
 import 'widgets/booking_card.dart';
 import 'widgets/booking_filter_bar.dart';
 
-/// Dashboard showing bookings for [branchId] on a selectable date.
-/// Pull-to-refresh triggers a manual Collins sync (via the Edge
-/// Function) and then reloads from Supabase; realtime Postgres changes
+import 'collins_webview_screen.dart';
+
+/// Dashboard showing bookings for [branchId]. Can show all bookings till date
+/// or filter to a selectable date. Pull-to-refresh triggers a manual Collins sync
+/// (via the Edge Function) and then reloads from Supabase; realtime Postgres changes
 /// also refresh the list automatically as new bookings sync in.
 class BranchBookingsDashboardScreen extends StatefulWidget {
   const BranchBookingsDashboardScreen({
@@ -28,7 +30,8 @@ class _BranchBookingsDashboardScreenState
     extends State<BranchBookingsDashboardScreen> {
   final BookingSyncService _service = BookingSyncService();
 
-  DateTime _selectedDate = DateTime.now();
+  // Null indicates "All Bookings Till Date"
+  DateTime? _selectedDate;
   List<VenueBooking> _bookings = const [];
 
   bool _isInitialLoading = true;
@@ -96,7 +99,7 @@ class _BranchBookingsDashboardScreenState
     );
   }
 
-  Future<void> _onDateChanged(DateTime date) async {
+  Future<void> _onDateChanged(DateTime? date) async {
     setState(() {
       _selectedDate = date;
       _isInitialLoading = true;
@@ -126,8 +129,25 @@ class _BranchBookingsDashboardScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.branchName),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.branchName),
+            const Text(
+              'Customer Bookings · Realtime',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'New customer booking',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CollinsWebViewScreen()),
+            ),
+          ),
           if (_isSyncing)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
@@ -142,7 +162,7 @@ class _BranchBookingsDashboardScreenState
           else
             IconButton(
               icon: const Icon(Icons.sync),
-              tooltip: 'Sync now',
+              tooltip: 'Sync with Collins',
               onPressed: _onPullToRefresh,
             ),
         ],
@@ -169,8 +189,15 @@ class _BranchBookingsDashboardScreenState
         onRefresh: _onPullToRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            _EmptyState(),
+          children: [
+            _EmptyState(
+              title: _selectedDate != null
+                  ? 'No bookings for this day'
+                  : 'No customer bookings found till date',
+              subtitle: _selectedDate != null
+                  ? 'Pull down to sync with Collins or choose another day'
+                  : 'Pull down or tap sync to fetch latest reservations',
+            ),
           ],
         ),
       );
@@ -182,14 +209,23 @@ class _BranchBookingsDashboardScreenState
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(top: 8, bottom: 24),
         itemCount: _bookings.length,
-        itemBuilder: (context, index) => BookingCard(booking: _bookings[index]),
+        itemBuilder: (context, index) => BookingCard(
+          booking: _bookings[index],
+          showDate: _selectedDate == null,
+        ),
       ),
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({
+    this.title = 'No customer bookings found',
+    this.subtitle = 'Pull down or tap sync to fetch latest reservations',
+  });
+
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -201,12 +237,12 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.event_busy, size: 48, color: Theme.of(context).hintColor),
           const SizedBox(height: 12),
           Text(
-            'No bookings for this day',
+            title,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 4),
           Text(
-            'Pull down to sync with Collins',
+            subtitle,
             style: Theme.of(context)
                 .textTheme
                 .bodySmall

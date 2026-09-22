@@ -4,7 +4,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../providers/staff_provider.dart';
 import '../attendance/attendance_screen.dart';
-import '../bookings/collins_webview_screen.dart';
+import '../bookings/branch_bookings_dashboard_screen.dart';
+import '../bookings/collins_venue_mapper.dart';
 import '../catalog/catalog_manager_screen.dart';
 import '../scan/scan_hub_screen.dart';
 import '../tables/table_control_screen.dart';
@@ -74,9 +75,21 @@ class HomeScreen extends StatelessWidget {
                   context,
                   icon: Icons.calendar_month_outlined,
                   title: 'Bookings',
-                  subtitle: 'Access Collins',
-                  onTap: () => Navigator.push(
-                      context, MaterialPageRoute(builder: (_) => const CollinsWebViewScreen())),
+                  subtitle: 'Live reservations',
+                  onTap: () {
+                    final branchId = CollinsVenueMapper.getBranchNumericId(
+                        branch?.id ?? branch?.name);
+                    final branchName = branch?.name ?? 'TigerBay Kingsbury';
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BranchBookingsDashboardScreen(
+                          branchId: branchId,
+                          branchName: branchName,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 _actionCard(
                   context,
