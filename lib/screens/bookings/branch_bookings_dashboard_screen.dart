@@ -65,6 +65,13 @@ class _BranchBookingsDashboardScreenState
     });
 
     await _fetchBookings();
+    // If no bookings found locally, auto-trigger a sync from Collins
+    if (_bookings.isEmpty && mounted) {
+      try {
+        await _service.triggerManualSync(widget.branchId);
+        await _fetchBookings();
+      } catch (_) {}
+    }
     _subscribeRealtime();
 
     if (mounted) {

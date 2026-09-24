@@ -11,6 +11,8 @@ class TableStatus extends Equatable {
   final String lastUpdatedBy;
   final DateTime lastUpdatedAt;
   final int seats;
+  final String? guestName;
+  final String? bookingTime;
 
   const TableStatus({
     required this.id,
@@ -20,6 +22,8 @@ class TableStatus extends Equatable {
     required this.lastUpdatedBy,
     required this.lastUpdatedAt,
     this.seats = 2,
+    this.guestName,
+    this.bookingTime,
   });
 
   bool get isAvailable => status == AppConstants.tableAvailable;
@@ -32,9 +36,13 @@ class TableStatus extends Equatable {
       branchId: json['branchId'] as String,
       tableNumber: json['tableNumber'] as String,
       status: json['status'] as String,
-      lastUpdatedBy: json['lastUpdatedBy'] as String,
-      lastUpdatedAt: DateTime.parse(json['lastUpdatedAt'] as String),
+      lastUpdatedBy: json['lastUpdatedBy'] as String? ?? '',
+      lastUpdatedAt: json['lastUpdatedAt'] != null
+          ? DateTime.parse(json['lastUpdatedAt'] as String)
+          : DateTime.now(),
       seats: json['seats'] as int? ?? 2,
+      guestName: json['guestName'] as String?,
+      bookingTime: json['bookingTime'] as String?,
     );
   }
 
@@ -47,6 +55,8 @@ class TableStatus extends Equatable {
       'lastUpdatedBy': lastUpdatedBy,
       'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'seats': seats,
+      if (guestName != null) 'guestName': guestName,
+      if (bookingTime != null) 'bookingTime': bookingTime,
     };
   }
 
@@ -54,6 +64,8 @@ class TableStatus extends Equatable {
     String? status,
     String? lastUpdatedBy,
     DateTime? lastUpdatedAt,
+    String? guestName,
+    String? bookingTime,
   }) {
     return TableStatus(
       id: id,
@@ -63,6 +75,8 @@ class TableStatus extends Equatable {
       lastUpdatedBy: lastUpdatedBy ?? this.lastUpdatedBy,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
       seats: seats,
+      guestName: guestName ?? this.guestName,
+      bookingTime: bookingTime ?? this.bookingTime,
     );
   }
 
@@ -75,5 +89,7 @@ class TableStatus extends Equatable {
         lastUpdatedBy,
         lastUpdatedAt,
         seats,
+        guestName,
+        bookingTime,
       ];
 }

@@ -87,9 +87,9 @@ class _TableControlScreenState extends State<TableControlScreen> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
                 children: [
-                  _statCol('${tableProvider.availableCount}', 'Available'),
                   _statCol('${tableProvider.occupiedCount}', 'Occupied', color: AppColors.tableOccupiedText),
                   _statCol('${tableProvider.reservedCount}', 'Reserved', color: AppColors.tableReservedText),
+                  _statCol('${tableProvider.tables.length}', 'Total Booked', color: AppColors.gold),
                   const Spacer(),
                   TextButton.icon(
                     onPressed: () {
@@ -105,27 +105,74 @@ class _TableControlScreenState extends State<TableControlScreen> {
             Expanded(
               child: tableProvider.isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: tableProvider.tables.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        childAspectRatio: 1.15,
-                      ),
-                      itemBuilder: (context, index) {
-                        final table = tableProvider.tables[index];
-                        return _TableCard(
-                          table: table,
-                          onTap: () => PermissionGuard.run(
-                            context,
-                            allowed: staffProvider.canOverrideTables,
-                            action: () => _showStatusPicker(context, table, tableProvider, staffProvider),
+                  : tableProvider.tables.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: AppColors.border,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.table_restaurant_outlined,
+                                    size: 40,
+                                    color: AppColors.gold,
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                const Text(
+                                  'No Tables Booked',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Currently no tables are occupied or reserved. Tables will appear here when actually booked.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        );
-                      },
-                    ),
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: tableProvider.tables.length,
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 14,
+                            crossAxisSpacing: 14,
+                            childAspectRatio: 1.05,
+                          ),
+                          itemBuilder: (context, index) {
+                            final table = tableProvider.tables[index];
+                            return _TableCard(
+                              table: table,
+                              onTap: () => PermissionGuard.run(
+                                context,
+                                allowed: staffProvider.canOverrideTables,
+                                action: () => _showStatusPicker(context, table, tableProvider, staffProvider),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -164,19 +211,19 @@ class _TableControlScreenState extends State<TableControlScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
             for (final status in [
-              AppConstants.tableAvailable,
               AppConstants.tableOccupied,
               AppConstants.tableUnavailable,
+              AppConstants.tableAvailable,
             ])
               ListTile(
-                title: Text(status),
+                title: Text(status == AppConstants.tableAvailable ? 'Mark Available (Release Table)' : status),
                 trailing: table.status == status ? const Icon(Icons.check, color: AppColors.gold) : null,
                 onTap: () {
                   Navigator.pop(context);
                   tableProvider.updateStatus(
                     tableId: table.id,
                     newStatus: status,
-                    updatedByStaffId: staffProvider.staff!.id,
+                    updatedByStaffId: staffProvider.staff?.id ?? 'staff',
                   );
                 },
               ),
@@ -211,7 +258,7 @@ class _TableCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: c.bg,
           borderRadius: BorderRadius.circular(16),
@@ -221,27 +268,51 @@ class _TableCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(table.tableNumber,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                Expanded(
+                  child: Text(
+                    table.tableNumber,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: c.fg,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(table.status,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(
+                table.status,
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
             ),
+            if (table.guestName != null && table.guestName!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                table.guestName!,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             const Spacer(),
             Row(
               children: [
-                const Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
+                const Icon(Icons.people_outline, size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text('Seats ${table.seats}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                if (table.bookingTime != null && table.bookingTime!.trim().isNotEmpty) ...[
+                  const Spacer(),
+                  const Icon(Icons.access_time, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(table.bookingTime!,
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                ],
               ],
             ),
           ],

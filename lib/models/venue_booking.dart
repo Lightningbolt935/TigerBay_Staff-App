@@ -21,7 +21,7 @@ DepositStatus depositStatusFromString(String? raw) {
 /// the Collins integration columns added by
 /// `20260915_collins_bookings_integration.sql`).
 class VenueBooking {
-  final int id;
+  final dynamic id;
   final String? userId;
   final int branchId;
 
@@ -70,25 +70,31 @@ class VenueBooking {
 
   factory VenueBooking.fromJson(Map<String, dynamic> json) {
     return VenueBooking(
-      id: json['id'] as int,
-      userId: json['user_id'] as String?,
-      branchId: json['branch_id'] as int,
-      bookingDate: DateTime.parse(json['booking_date'] as String),
-      bookingTime: (json['booking_time'] as String),
-      guestCount: (json['guest_count'] as int?) ?? 1,
-      specialRequests: json['special_requests'] as String?,
-      status: (json['status'] as String?) ?? 'confirmed',
-      stripsAwarded: (json['strips_awarded'] as bool?) ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      collinsBookingId: json['collins_booking_id'] as String?,
-      reference: json['reference'] as String?,
-      customerName: json['customer_name'] as String?,
-      customerEmail: json['customer_email'] as String?,
-      customerPhone: json['customer_phone'] as String?,
-      assignedTable: json['assigned_table'] as String?,
-      bookingType: json['booking_type'] as String?,
+      id: json['id']?.toString() ?? '',
+      userId: json['user_id']?.toString(),
+      branchId: json['branch_id'] is int
+          ? json['branch_id'] as int
+          : (int.tryParse(json['branch_id']?.toString() ?? '') ?? 2),
+      bookingDate: json['booking_date'] != null
+          ? (DateTime.tryParse(json['booking_date'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      bookingTime: json['booking_time']?.toString() ?? '',
+      guestCount: (json['guest_count'] as num?)?.toInt() ?? 1,
+      specialRequests: json['special_requests']?.toString(),
+      status: json['status']?.toString() ?? 'confirmed',
+      stripsAwarded: json['strips_awarded'] == true,
+      createdAt: json['created_at'] != null
+          ? (DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      collinsBookingId: json['collins_booking_id']?.toString(),
+      reference: json['reference']?.toString(),
+      customerName: json['customer_name']?.toString(),
+      customerEmail: json['customer_email']?.toString(),
+      customerPhone: json['customer_phone']?.toString(),
+      assignedTable: json['assigned_table']?.toString(),
+      bookingType: json['booking_type']?.toString(),
       depositAmount: (json['deposit_amount'] as num?)?.toDouble() ?? 0.0,
-      depositStatus: depositStatusFromString(json['deposit_status'] as String?),
+      depositStatus: depositStatusFromString(json['deposit_status']?.toString()),
       rawPayload: json['raw_payload'] as Map<String, dynamic>?,
     );
   }

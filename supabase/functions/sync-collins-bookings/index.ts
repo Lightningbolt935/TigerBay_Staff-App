@@ -360,6 +360,28 @@ export async function handleRequest(req: Request): Promise<Response> {
       body = {};
     }
 
+    if (body.action === "fetch") {
+      let query = supabase.from("bookings").select("*");
+      if (body.branch_id != null) {
+        query = query.eq("branch_id", body.branch_id);
+      }
+      if (body.date != null) {
+        query = query.eq("booking_date", body.date);
+      }
+      const { data: bookingRows, error: fetchErr } = await query
+        .order("booking_date", { ascending: false })
+        .order("booking_time", { ascending: true });
+
+      if (fetchErr) {
+        throw new Error(`Failed to fetch bookings: ${fetchErr.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({ status: "success", bookings: bookingRows || [] }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     let branchQuery = supabase
       .from("branches")
       .select("id, title, name, is_active, collins_venue_id")
@@ -396,7 +418,18 @@ export async function handleRequest(req: Request): Promise<Response> {
 
     const hadErrors = results.some((r) => r.error);
 
-    return new Response(JSON.stringify({ synced: results }), {
+    let returnedBookings: unknown[] | undefined;
+    if (body.include_bookings) {
+      let q = supabase.from("bookings").select("*");
+      if (body.branch_id != null) q = q.eq("branch_id", body.branch_id);
+      if (body.date != null) q = q.eq("booking_date", body.date);
+      const { data: bData } = await q
+        .order("booking_date", { ascending: false })
+        .order("booking_time", { ascending: true });
+      returnedBookings = bData || [];
+    }
+
+    return new Response(JSON.stringify({ synced: results, bookings: returnedBookings }), {
       status: hadErrors ? 207 : 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

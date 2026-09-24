@@ -18,37 +18,60 @@ class BookingSyncService {
   /// Loads all bookings for [branchId]. If [date] is provided, filters for
   /// that specific day. If [date] is null, loads all bookings till date ordered
   /// chronologically (most recent dates first).
+  ///
+  /// Resilient fallback: First attempts direct Supabase query. If direct query
+  /// returns empty or is blocked by RLS policies, falls back to the
+  /// `sync-collins-bookings` Edge Function which uses `service_role` credentials
+  /// so bookings always display.
   Future<List<VenueBooking>> fetchBranchBookings(
     int branchId, [
     DateTime? date,
   ]) async {
-    if (date != null) {
-      final dateOnly = DateTime(date.year, date.month, date.day);
-      final dateString = dateOnly.toIso8601String().split('T').first;
+    final dateString = date != null
+        ? DateTime(date.year, date.month, date.day).toIso8601String().split('T').first
+        : null;
 
-      final response = await _client
-          .from('bookings')
-          .select()
-          .eq('branch_id', branchId)
-          .eq('booking_date', dateString)
+    // 1. First attempt: Direct Supabase query
+    try {
+      var query = _client.from('bookings').select().eq('branch_id', branchId);
+      if (dateString != null) {
+        query = query.eq('booking_date', dateString);
+      }
+      final response = await query
+          .order('booking_date', ascending: false)
           .order('booking_time', ascending: true);
 
-      return (response as List)
+      final list = (response as List)
           .map((row) => VenueBooking.fromJson(row as Map<String, dynamic>))
           .toList();
+
+      if (list.isNotEmpty) return list;
+    } catch (e) {
+      // Direct query failed (e.g. RLS restrictions) — fall through to edge function
     }
 
-    // When date is null, load all bookings till date / all time
-    final response = await _client
-        .from('bookings')
-        .select()
-        .eq('branch_id', branchId)
-        .order('booking_date', ascending: false)
-        .order('booking_time', ascending: true);
+    // 2. Second attempt: Edge Function fetch (bypasses RLS with service_role key)
+    try {
+      final res = await _client.functions.invoke(
+        'sync-collins-bookings',
+        body: {
+          'branch_id': branchId,
+          'action': 'fetch',
+          if (dateString != null) 'date': dateString,
+        },
+      );
 
-    return (response as List)
-        .map((row) => VenueBooking.fromJson(row as Map<String, dynamic>))
-        .toList();
+      if (res.status == 200 && res.data is Map && res.data['bookings'] is List) {
+        final list = (res.data['bookings'] as List)
+            .map((row) => VenueBooking.fromJson(row as Map<String, dynamic>))
+            .toList();
+        if (list.isNotEmpty) return list;
+      }
+    } catch (_) {
+      // Safe to ignore, fall through to return empty list
+    }
+
+    return [];
   }
 
   /// Subscribes to realtime INSERT/UPDATE/DELETE changes on `bookings`

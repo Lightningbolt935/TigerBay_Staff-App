@@ -67,6 +67,7 @@ class AppConstants {
   static const String tableAvailable = 'Available';
   static const String tableOccupied = 'Occupied';
   static const String tableUnavailable = 'Unavailable';
+  static const String tableReserved = 'Reserved';
 
   // Leave request — type values (must match DB CHECK constraint)
   static const String leaveTypeSick = 'sick';
