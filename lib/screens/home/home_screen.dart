@@ -77,9 +77,10 @@ class HomeScreen extends StatelessWidget {
                   title: 'Bookings',
                   subtitle: 'Live reservations',
                   onTap: () {
-                    final branchId = CollinsVenueMapper.getBranchNumericId(
-                        branch?.id ?? branch?.name);
-                    final branchName = branch?.name ?? 'TigerBay Kingsbury';
+                    // Use branch.name (e.g. "Kingsbury") as the lookup key —
+                    // more reliable than the Collins venue ID string for getBranchNumericId.
+                    final branchName = branch?.name ?? 'Kingsbury';
+                    final branchId = CollinsVenueMapper.getBranchNumericId(branchName);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -214,11 +215,15 @@ class HomeScreen extends StatelessWidget {
             const Divider(height: 28),
             Consumer<StaffProvider>(
               builder: (context, sp, _) {
-                return const Row(
+                // Shift tracking via attendance system — display 'Active' when clocked in.
+                // Full elapsed timer will be available once AttendanceProvider is wired.
+                final role = sp.staff?.role ?? 'Staff';
+                return Row(
                   children: [
-                    Icon(Icons.access_time, size: 18, color: AppColors.textSecondary),
-                    SizedBox(width: 8),
-                    Text('On shift: 3h 22m', style: TextStyle(color: AppColors.textSecondary)),
+                    const Icon(Icons.access_time, size: 18, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    Text('$role · Shift active',
+                        style: const TextStyle(color: AppColors.textSecondary)),
                   ],
                 );
               },
@@ -264,38 +269,51 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _todaysActivity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("Today's Activity", style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-        const SizedBox(height: 12),
-        Row(
+    return Consumer<StaffProvider>(
+      builder: (context, sp, _) {
+        // Live shift stats — populated by AttendanceProvider once clocked in.
+        // Shows '—' until real data is available, avoiding fake hardcoded numbers.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _statTile('142', 'Points Issued'),
-            const SizedBox(width: 12),
-            _statTile('28', 'Redemptions'),
-            const SizedBox(width: 12),
-            _statTile('12', 'Table Updates'),
+            const Text("Today's Activity",
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                Expanded(child: _StatTile(value: '—', label: 'Points Issued')),
+                SizedBox(width: 12),
+                Expanded(child: _StatTile(value: '—', label: 'Redemptions')),
+                SizedBox(width: 12),
+                Expanded(child: _StatTile(value: '—', label: 'Table Updates')),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
+}
 
-  Widget _statTile(String value, String label) {
-    return Expanded(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            children: [
-              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text(label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-            ],
-          ),
+/// Extracted stat tile so it can be used inside a Consumer without Expanded context issues.
+class _StatTile extends StatelessWidget {
+  final String value;
+  final String label;
+  const _StatTile({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          children: [
+            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          ],
         ),
       ),
     );

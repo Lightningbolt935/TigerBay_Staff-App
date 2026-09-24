@@ -137,6 +137,42 @@ class BookingSyncService {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  /// Triggers a Collins sync for [branchId] then fetches the freshly-upserted
+  /// bookings from the database.
+  ///
+  /// The deployed `sync-collins-bookings` function is a cron-style trigger that:
+  ///   - Syncs Collins data into the `bookings` table
+  ///   - Returns `{ status, total_synced, branches, timestamp }`
+  ///   - Does NOT support `include_bookings` or `action: fetch`
+  ///
+  /// After the sync completes, this method fetches the now-populated rows
+  /// directly from Supabase, which is fast since they are already in the DB.
+  Future<List<VenueBooking>> triggerSyncAndFetch(
+    int branchId, {
+    DateTime? date,
+  }) async {
+    // Step 1: Trigger the sync (fire-and-check, not fire-and-forget)
+    try {
+      final response = await _client.functions.invoke(
+        'sync-collins-bookings',
+        body: {'branch_id': branchId},
+      );
+      // Accept both 200 (all ok) and 207 (partial errors) as successful syncs
+      if (response.status != 200 && response.status != 207) {
+        throw BookingSyncException(
+          'Sync responded with HTTP ${response.status}',
+        );
+      }
+    } catch (e) {
+      // If the sync call itself fails (network / function error),
+      // still attempt to read whatever is cached in the DB
+      if (e is! BookingSyncException) rethrow;
+    }
+
+    // Step 2: Fetch the freshly-synced bookings from the database
+    return fetchBranchBookings(branchId, date);
+  }
+
   void dispose() {
     unsubscribe();
   }

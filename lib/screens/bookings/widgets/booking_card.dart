@@ -139,34 +139,53 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
   final String status;
 
-  Color _colorFor(String status) {
+  ({Color color, String label}) get _meta {
     switch (status.toLowerCase()) {
-      case 'complete':
       case 'confirmed':
-        return Colors.green;
+        return (color: Colors.green, label: 'Confirmed');
+      case 'complete':
+        return (color: Colors.green.shade700, label: 'Complete');
+      case 'seated':
+        return (color: Colors.teal, label: 'Seated');
+      case 'partial_arrival':
+        return (color: Colors.lightBlue.shade700, label: 'Partial Arrival');
+      case 'walk_in':
+        return (color: Colors.indigo, label: 'Walk-in');
+      case 'waiting_list':
+        return (color: Colors.deepPurple, label: 'Waitlist');
+      case 'no_show':
+        return (color: Colors.red.shade700, label: 'No Show');
       case 'cancelled':
       case 'canceled':
-        return Colors.red;
+        return (color: Colors.red, label: 'Cancelled');
       case 'pending':
-        return Colors.orange;
+        return (color: Colors.orange, label: 'Pending');
+      case 'arrived':
+        return (color: Colors.cyan.shade700, label: 'Arrived');
       default:
-        return Colors.blueGrey;
+        // Title-case the raw status so it always reads cleanly
+        final label = status
+            .split('_')
+            .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
+            .join(' ');
+        return (color: Colors.blueGrey, label: label);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(status);
+    final meta = _meta;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: meta.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        border: Border.all(color: meta.color.withValues(alpha: 0.4)),
       ),
       child: Text(
-        status,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        meta.label,
+        style: TextStyle(
+            color: meta.color, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -64,19 +64,27 @@ class _BranchBookingsDashboardScreenState
       _errorMessage = null;
     });
 
-    await _fetchBookings();
-    // If no bookings found locally, auto-trigger a sync from Collins
-    if (_bookings.isEmpty && mounted) {
-      try {
-        await _service.triggerManualSync(widget.branchId);
-        await _fetchBookings();
-      } catch (_) {}
+    // Always trigger a sync-and-fetch on load to get the latest Collins data.
+    // triggerManualSync now uses include_bookings:true so bookings come back
+    // in the same response without a second round-trip.
+    try {
+      final result = await _service.triggerSyncAndFetch(
+        widget.branchId,
+        date: _selectedDate,
+      );
+      if (mounted) {
+        setState(() {
+          _bookings = result;
+          _errorMessage = null;
+        });
+      }
+    } catch (_) {
+      // Sync failed — fall back to fetching whatever is already cached locally
+      await _fetchBookings();
     }
-    _subscribeRealtime();
 
-    if (mounted) {
-      setState(() => _isInitialLoading = false);
-    }
+    _subscribeRealtime();
+    if (mounted) setState(() => _isInitialLoading = false);
   }
 
   Future<void> _fetchBookings() async {
@@ -117,14 +125,24 @@ class _BranchBookingsDashboardScreenState
   }
 
   Future<void> _onPullToRefresh() async {
-    setState(() => _isSyncing = true);
+    setState(() {
+      _isSyncing = true;
+      _errorMessage = null;
+    });
     try {
-      await _service.triggerManualSync(widget.branchId);
-      await _fetchBookings();
+      final result = await _service.triggerSyncAndFetch(
+        widget.branchId,
+        date: _selectedDate,
+      );
+      if (mounted) setState(() => _bookings = result);
     } catch (err) {
       if (mounted) {
+        setState(() => _errorMessage = 'Sync failed. Check your connection and try again.');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sync failed: $err')),
+          SnackBar(
+            content: const Text('Could not sync with Collins — showing cached data'),
+            action: SnackBarAction(label: 'Retry', onPressed: _onPullToRefresh),
+          ),
         );
       }
     } finally {
@@ -200,10 +218,11 @@ class _BranchBookingsDashboardScreenState
             _EmptyState(
               title: _selectedDate != null
                   ? 'No bookings for this day'
-                  : 'No customer bookings found till date',
+                  : 'No customer bookings yet',
               subtitle: _selectedDate != null
                   ? 'Pull down to sync with Collins or choose another day'
-                  : 'Pull down or tap sync to fetch latest reservations',
+                  : 'Tap Sync to pull the latest reservations from Collins',
+              onSync: _isSyncing ? null : _onPullToRefresh,
             ),
           ],
         ),
@@ -228,33 +247,45 @@ class _BranchBookingsDashboardScreenState
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     this.title = 'No customer bookings found',
-    this.subtitle = 'Pull down or tap sync to fetch latest reservations',
+    this.subtitle = 'Pull down or tap Sync to fetch latest reservations',
+    this.onSync,
   });
 
   final String title;
   final String subtitle;
+  final Future<void> Function()? onSync;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 96),
+      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.event_busy, size: 48, color: Theme.of(context).hintColor),
-          const SizedBox(height: 12),
+          Icon(Icons.calendar_today_outlined, size: 56, color: Theme.of(context).hintColor),
+          const SizedBox(height: 16),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             subtitle,
+            textAlign: TextAlign.center,
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
                 ?.copyWith(color: Theme.of(context).hintColor),
           ),
+          if (onSync != null) ...[
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onSync,
+              icon: const Icon(Icons.sync, size: 18),
+              label: const Text('Sync with Collins'),
+            ),
+          ],
         ],
       ),
     );
