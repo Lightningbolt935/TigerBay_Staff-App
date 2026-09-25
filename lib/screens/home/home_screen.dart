@@ -273,13 +273,13 @@ class HomeScreen extends StatelessWidget {
       builder: (context, sp, _) {
         // Live shift stats — populated by AttendanceProvider once clocked in.
         // Shows '—' until real data is available, avoiding fake hardcoded numbers.
-        return Column(
+        return const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Today's Activity",
+            Text("Today's Activity",
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 12),
-            const Row(
+            SizedBox(height: 12),
+            Row(
               children: [
                 Expanded(child: _StatTile(value: '—', label: 'Points Issued')),
                 SizedBox(width: 12),

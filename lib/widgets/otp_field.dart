@@ -102,7 +102,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
             if (clean.length == 6) widget.onVerify(clean);
           },
           decoration: InputDecoration(
-            hintText: '000000',
+            hintText: '••••••',
             counterText: '', // hide the default character counter
             suffixIcon: IconButton(
               icon: const Icon(Icons.content_paste),
