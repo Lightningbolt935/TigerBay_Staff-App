@@ -525,3 +525,76 @@ class SupabaseService {
       'image_url': imageUrl,
     }).eq('id', id);
   }
+
+  /// Deletes a dish by its bigint [id].
+  Future<void> deleteDish(int id) async {
+    await _client.from('dishes').delete().eq('id', id);
+  }
+
+  // ── Rewards ─────────────────────────────────────────────────────────────────
+
+  /// Fetches all rows from the `rewards` table ordered by points required.
+  Future<List<Map<String, dynamic>>> getRewards() async {
+    final response =
+        await _client.from('rewards').select().order('points_required');
+    return List<Map<String, dynamic>>.from(response as List);
+  }
+
+  /// Inserts a new reward row.
+  Future<Map<String, dynamic>> insertReward({
+    required String title,
+    required int pointsRequired,
+    required String description,
+    String? imageUrl,
+  }) async {
+    final response = await _client
+        .from('rewards')
+        .insert({
+          'title': title,
+          'points_required': pointsRequired,
+          'description': description,
+          if (imageUrl != null) 'image_url': imageUrl,
+        })
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Updates an existing reward row by its bigint [id].
+  Future<void> updateReward({
+    required int id,
+    required String title,
+    required int pointsRequired,
+    required String description,
+    String? imageUrl,
+  }) async {
+    await _client.from('rewards').update({
+      'title': title,
+      'points_required': pointsRequired,
+      'description': description,
+      'image_url': imageUrl,
+    }).eq('id', id);
+  }
+
+  /// Deletes a reward by its bigint [id].
+  Future<void> deleteReward(int id) async {
+    await _client.from('rewards').delete().eq('id', id);
+  }
+
+  // ── Storage ─────────────────────────────────────────────────────────────────
+
+  /// Uploads binary image bytes to a Supabase Storage bucket and returns public URL.
+  Future<String> uploadCatalogImage({
+    required String bucket,
+    required String path,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    await _client.storage.from(bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mimeType, upsert: true),
+        );
+    return _client.storage.from(bucket).getPublicUrl(path);
+  }
+}
