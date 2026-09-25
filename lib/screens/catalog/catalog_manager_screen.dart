@@ -23,6 +23,7 @@ class _Dish {
   final String name;
   final double price;
   final String description;
+  final String category;
   final String? imageUrl;
 
   const _Dish({
@@ -30,6 +31,7 @@ class _Dish {
     required this.name,
     required this.price,
     required this.description,
+    required this.category,
     this.imageUrl,
   });
 
@@ -38,6 +40,7 @@ class _Dish {
         name: m['name'] as String? ?? '',
         price: (m['price'] as num?)?.toDouble() ?? 0.0,
         description: m['description'] as String? ?? '',
+        category: m['category'] as String? ?? 'Food',
         imageUrl: m['image_url'] as String?,
       );
 }
@@ -155,6 +158,7 @@ class _CatalogManagerScreenState extends State<CatalogManagerScreen>
       name: r.name,
       price: r.price,
       description: r.description,
+      category: r.category,
       imageUrl: imageUrl,
     );
     await _loadDishes();
@@ -174,6 +178,7 @@ class _CatalogManagerScreenState extends State<CatalogManagerScreen>
       name: r.name,
       price: r.price,
       description: r.description,
+      category: r.category,
       imageUrl: imageUrl,
     );
     await _loadDishes();
@@ -442,7 +447,7 @@ class _DishesTab extends StatelessWidget {
         return _ItemCard(
           imageUrl: d.imageUrl,
           title: d.name,
-          subtitle: '£${d.price.toStringAsFixed(2)}',
+          subtitle: '${d.category} • £${d.price.toStringAsFixed(2)}',
           description: d.description,
           onEdit: () => onEdit(d),
           onDelete: () => onDelete(d),
@@ -677,11 +682,14 @@ class _DishFormResult {
   final String name;
   final double price;
   final String description;
+  final String category;
   final File? imageFile;
+
   const _DishFormResult({
     required this.name,
     required this.price,
     required this.description,
+    required this.category,
     this.imageFile,
   });
 }
@@ -701,17 +709,31 @@ class _DishFormSheetState extends State<_DishFormSheet> {
   late final TextEditingController _name;
   late final TextEditingController _price;
   late final TextEditingController _desc;
+  late String _selectedCategory;
   File? _imageFile;
   bool _saving = false;
+
+  final List<String> _categories = const ['Food', 'Drinks', 'Shisha'];
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
     _name = TextEditingController(text: e?.name ?? '');
-    _price =
-        TextEditingController(text: e != null ? e.price.toString() : '');
+    _price = TextEditingController(text: e != null ? e.price.toString() : '');
     _desc = TextEditingController(text: e?.description ?? '');
+
+    // Map existing category to one of the 3 types or default to Food
+    final existingCat = e?.category;
+    if (existingCat != null && _categories.contains(existingCat)) {
+      _selectedCategory = existingCat;
+    } else if (existingCat != null && existingCat.toLowerCase().contains('drink')) {
+      _selectedCategory = 'Drinks';
+    } else if (existingCat != null && existingCat.toLowerCase().contains('shisha')) {
+      _selectedCategory = 'Shisha';
+    } else {
+      _selectedCategory = 'Food';
+    }
   }
 
   @override
@@ -739,6 +761,7 @@ class _DishFormSheetState extends State<_DishFormSheet> {
         name: _name.text.trim(),
         price: double.tryParse(_price.text.trim()) ?? 0.0,
         description: _desc.text.trim(),
+        category: _selectedCategory,
         imageFile: _imageFile,
       ));
       if (mounted) Navigator.pop(context);
@@ -770,6 +793,54 @@ class _DishFormSheetState extends State<_DishFormSheet> {
               onTap: _saving ? null : _pickImage,
             ),
             const SizedBox(height: 16),
+
+            // ── Type Selector Pills (Food / Drinks / Shisha) ──
+            const Text(
+              'Item Type',
+              style: TextStyle(
+                color: _kTextSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: _categories.map((cat) {
+                final isSelected = _selectedCategory == cat;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: InkWell(
+                      onTap: _saving ? null : () => setState(() => _selectedCategory = cat),
+                      borderRadius: BorderRadius.circular(24),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _kGold : const Color(0xFF242428),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isSelected ? _kGold : _kBorder,
+                            width: 1.2,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          cat,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
             _FormField(
               controller: _name,
               label: 'Dish Name',
@@ -981,7 +1052,6 @@ class _FormSheetWrapper extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Center(
               child: Container(
                 width: 40,
