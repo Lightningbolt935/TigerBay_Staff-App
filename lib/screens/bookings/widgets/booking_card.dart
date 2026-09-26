@@ -98,6 +98,11 @@ class BookingCard extends StatelessWidget {
                 _DepositBadge(booking: booking),
               ],
             ),
+            if (booking.specialRequests != null &&
+                booking.specialRequests!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _DietarySeatingChips(specialRequests: booking.specialRequests!),
+            ],
           ],
         ),
       ),
@@ -218,6 +223,129 @@ class _DepositBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DietarySeatingChips extends StatelessWidget {
+  const _DietarySeatingChips({required this.specialRequests});
+  final String specialRequests;
+
+  @override
+  Widget build(BuildContext context) {
+    final lower = specialRequests.toLowerCase();
+    final List<Widget> chips = [];
+
+    if (lower.contains('nut') || lower.contains('allergy') || lower.contains('allergies')) {
+      chips.add(
+        Chip(
+          avatar: const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.red),
+          label: Text(
+            lower.contains('nut') ? 'Nut Allergy' : 'Allergy Alert',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red),
+          ),
+          backgroundColor: Colors.red.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+    if (lower.contains('gluten')) {
+      chips.add(
+        Chip(
+          avatar: const Text('🌾', style: TextStyle(fontSize: 12)),
+          label: const Text(
+            'Gluten-Free',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange),
+          ),
+          backgroundColor: Colors.orange.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.orange.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+    if (lower.contains('halal')) {
+      chips.add(
+        Chip(
+          avatar: const Text('🥩', style: TextStyle(fontSize: 12)),
+          label: const Text(
+            'Halal Only',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          backgroundColor: Colors.green.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.green.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+    if (lower.contains('vegan')) {
+      chips.add(
+        Chip(
+          avatar: const Text('🥬', style: TextStyle(fontSize: 12)),
+          label: const Text(
+            'Vegan',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal),
+          ),
+          backgroundColor: Colors.teal.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.teal.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    } else if (lower.contains('vegetarian') || lower.contains('veg')) {
+      chips.add(
+        Chip(
+          avatar: const Text('🥬', style: TextStyle(fontSize: 12)),
+          label: const Text(
+            'Vegetarian',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal),
+          ),
+          backgroundColor: Colors.teal.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.teal.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+    if (lower.contains('booth')) {
+      chips.add(
+        Chip(
+          avatar: const Icon(Icons.weekend_rounded, size: 14, color: Color(0xFFD4AF37)),
+          label: const Text(
+            'Booth Seating',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFD4AF37)),
+          ),
+          backgroundColor: const Color(0xFFD4AF37).withValues(alpha: 0.12),
+          side: const BorderSide(color: Color(0xFFD4AF37)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+    if (lower.contains('terrace') || lower.contains('outdoor')) {
+      chips.add(
+        Chip(
+          avatar: const Icon(Icons.deck_rounded, size: 14, color: Colors.cyan),
+          label: const Text(
+            'Outdoor Terrace',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.cyan),
+          ),
+          backgroundColor: Colors.cyan.withValues(alpha: 0.12),
+          side: BorderSide(color: Colors.cyan.withValues(alpha: 0.4)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: chips,
     );
   }
 }

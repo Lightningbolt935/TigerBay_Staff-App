@@ -368,12 +368,29 @@ class _ScanHubScreenState extends State<ScanHubScreen>
     return trimmed;
   }
 
+  List<String> _parseScannedPrefs(String raw) {
+    final trimmed = raw.trim();
+    try {
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        final decoded = jsonDecode(trimmed) as Map<String, dynamic>;
+        if (decoded.containsKey('prefs') && decoded['prefs'] is List) {
+          return (decoded['prefs'] as List)
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return const [];
+  }
+
   Future<void> _handleScannedCode(String rawCode) async {
     // Release the camera while we resolve/navigate — frees the hardware
     // immediately instead of holding it behind pushed screens.
     unawaited(_syncCamera());
 
     final memberCode = _parseScannedQr(rawCode);
+    final scannedPrefs = _parseScannedPrefs(rawCode);
     final staffProvider = context.read<StaffProvider>();
     final allowed =
         _isIssue ? staffProvider.canIssuePoints : staffProvider.canRedeemVouchers;
@@ -419,6 +436,7 @@ class _ScanHubScreenState extends State<ScanHubScreen>
                 builder: (_) => StaffBillingPointScreen(
                   initialMemberCode: canonicalCode,
                   initialMemberName: memberName,
+                  initialDiningPrefs: scannedPrefs,
                 ),
               ),
             );

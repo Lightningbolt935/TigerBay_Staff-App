@@ -19,9 +19,14 @@ class StaffBillingPointScreen extends StatefulWidget {
   /// Optional resolved member name (from QR scan lookup) shown for
   /// identity confirmation before staff credit any points.
   final String? initialMemberName;
+  final List<String>? initialDiningPrefs;
 
-  const StaffBillingPointScreen(
-      {super.key, this.initialMemberCode, this.initialMemberName});
+  const StaffBillingPointScreen({
+    super.key,
+    this.initialMemberCode,
+    this.initialMemberName,
+    this.initialDiningPrefs,
+  });
 
   @override
   State<StaffBillingPointScreen> createState() =>
@@ -38,6 +43,7 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
 
   /// Resolved member name shown in the identity-confirmation banner.
   String? _resolvedMemberName;
+  List<String> _resolvedDiningPrefs = [];
 
   @override
   void initState() {
@@ -47,14 +53,18 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
     _memberCodeController =
         TextEditingController(text: widget.initialMemberCode ?? '');
     _resolvedMemberName = widget.initialMemberName;
+    _resolvedDiningPrefs = widget.initialDiningPrefs ?? [];
     _memberCodeController.addListener(_onCodeChanged);
   }
 
   /// When staff edit the code by hand the previously confirmed member no
   /// longer matches — drop the banner so a stale name can't mislead anyone.
   void _onCodeChanged() {
-    if (_resolvedMemberName != null && mounted) {
-      setState(() => _resolvedMemberName = null);
+    if ((_resolvedMemberName != null || _resolvedDiningPrefs.isNotEmpty) && mounted) {
+      setState(() {
+        _resolvedMemberName = null;
+        _resolvedDiningPrefs = [];
+      });
     }
   }
 
@@ -71,6 +81,13 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
     try {
       final customer = await _supabase.findCustomerByIdentifier(code);
       if (!mounted) return;
+      List<String> prefs = [];
+      if (customer != null && customer['dining_preferences'] != null) {
+        final raw = customer['dining_preferences'];
+        if (raw is List) {
+          prefs = raw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        }
+      }
       setState(() {
         _resolvedMemberName = customer == null
             ? null
@@ -79,6 +96,7 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
                     customer['email'] ??
                     'Unknown member')
                 .toString();
+        _resolvedDiningPrefs = prefs;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: customer == null ? AppColors.danger : AppColors.success,
@@ -533,6 +551,110 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
                 const SizedBox(height: 20),
               ],
 
+              // ---- Dining & Lounge Preferences Banner (Allergies & VIP Seating) ----
+              if (_resolvedDiningPrefs.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E24),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _resolvedDiningPrefs.any((p) =>
+                              p.toLowerCase().contains('allergy') ||
+                              p.toLowerCase().contains('gluten'))
+                          ? AppColors.danger.withValues(alpha: 0.6)
+                          : AppColors.gold.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _resolvedDiningPrefs.any((p) =>
+                                    p.toLowerCase().contains('allergy'))
+                                ? Icons.warning_amber_rounded
+                                : Icons.room_service_outlined,
+                            size: 18,
+                            color: _resolvedDiningPrefs.any((p) =>
+                                    p.toLowerCase().contains('allergy'))
+                                ? AppColors.danger
+                                : AppColors.gold,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'VIP Dining & Dietary Preferences',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _resolvedDiningPrefs.any((p) =>
+                                      p.toLowerCase().contains('allergy'))
+                                  ? AppColors.danger
+                                  : AppColors.gold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _resolvedDiningPrefs.map((pref) {
+                          final isAllergy = pref.toLowerCase().contains('allergy') ||
+                              pref.toLowerCase().contains('gluten');
+                          final isDietary = pref.toLowerCase().contains('halal') ||
+                              pref.toLowerCase().contains('veg');
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isAllergy
+                                  ? AppColors.danger.withValues(alpha: 0.15)
+                                  : isDietary
+                                      ? AppColors.success.withValues(alpha: 0.15)
+                                      : AppColors.goldPale,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isAllergy
+                                    ? AppColors.danger.withValues(alpha: 0.5)
+                                    : isDietary
+                                        ? AppColors.success.withValues(alpha: 0.5)
+                                        : AppColors.gold.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _getPrefEmoji(pref),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  pref,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isAllergy
+                                        ? AppColors.danger
+                                        : isDietary
+                                            ? AppColors.success
+                                            : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               // ---- Member code ----------------------------------------
               _sectionLabel('Member Code', Icons.badge_outlined),
               const SizedBox(height: 8),
@@ -628,5 +750,17 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
                 fontWeight: FontWeight.w700, fontSize: 14)),
       ],
     );
+  }
+
+  String _getPrefEmoji(String pref) {
+    final lower = pref.toLowerCase();
+    if (lower.contains('nut')) return '🥜';
+    if (lower.contains('gluten')) return '🌾';
+    if (lower.contains('halal')) return '🥩';
+    if (lower.contains('vegan') || lower.contains('vegetarian')) return '🥬';
+    if (lower.contains('alcohol')) return '🍹';
+    if (lower.contains('booth')) return '🛋';
+    if (lower.contains('terrace')) return '🌿';
+    return '✨';
   }
 }
