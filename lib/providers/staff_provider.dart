@@ -2,23 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/staff_member.dart';
 import '../models/branch.dart';
-import '../services/api_service.dart';
 import '../services/pin_service.dart';
 import 'auth_provider.dart';
 
 /// Holds the signed-in StaffMember's operational context (permissions,
 /// active Branch) loaded directly from Supabase database tables.
 class StaffProvider extends ChangeNotifier {
-  final ApiService _api;
   final PinService _pinService;
   final AuthProvider _authProvider;
 
   StaffProvider({
     required AuthProvider authProvider,
-    ApiService? api,
     PinService? pinService,
   })  : _authProvider = authProvider,
-        _api = api ?? ApiService(),
         _pinService = pinService ?? PinService() {
     _authProvider.addListener(_onAuthChanged);
   }
@@ -207,6 +203,7 @@ class StaffProvider extends ChangeNotifier {
   bool get canOverrideTables => staff?.permissions.canOverrideTables ?? false;
   bool get canViewAnalytics => staff?.permissions.canViewAnalytics ?? false;
 
+  @override
   void dispose() {
     _authProvider.removeListener(_onAuthChanged);
     super.dispose();

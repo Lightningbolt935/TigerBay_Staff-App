@@ -6,18 +6,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants/app_constants.dart';
 import '../models/shift_log.dart';
 import '../models/branch.dart';
-import '../services/api_service.dart';
 import '../services/geofence_service.dart';
 
 /// Drives the Attendance screen: geofence validation, check-in,
 /// check-out, and shift duration using the `timesheets` table.
 class ShiftProvider extends ChangeNotifier {
-  final ApiService _api;
   final GeofenceService _geofence;
 
-  ShiftProvider({ApiService? api, GeofenceService? geofence})
-      : _api = api ?? ApiService(),
-        _geofence = geofence ?? GeofenceService();
+  ShiftProvider({GeofenceService? geofence})
+      : _geofence = geofence ?? GeofenceService();
 
   ShiftLog? _activeShift;
   GeoValidationResult? _validation;
