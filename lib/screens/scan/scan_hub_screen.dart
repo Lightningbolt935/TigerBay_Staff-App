@@ -368,6 +368,21 @@ class _ScanHubScreenState extends State<ScanHubScreen>
     return trimmed;
   }
 
+  String? _parseScannedUid(String raw) {
+    final trimmed = raw.trim();
+    try {
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        final decoded = jsonDecode(trimmed) as Map<String, dynamic>;
+        if (decoded.containsKey('uid') &&
+            decoded['uid'] != null &&
+            decoded['uid'].toString().isNotEmpty) {
+          return decoded['uid'].toString();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   List<String> _parseScannedPrefs(String raw) {
     final trimmed = raw.trim();
     try {
@@ -390,6 +405,7 @@ class _ScanHubScreenState extends State<ScanHubScreen>
     unawaited(_syncCamera());
 
     final memberCode = _parseScannedQr(rawCode);
+    final scannedUid = _parseScannedUid(rawCode);
     final scannedPrefs = _parseScannedPrefs(rawCode);
     final staffProvider = context.read<StaffProvider>();
     final allowed =
@@ -405,6 +421,9 @@ class _ScanHubScreenState extends State<ScanHubScreen>
           Map<String, dynamic>? customer;
           try {
             customer = await _supabase.findCustomerByIdentifier(memberCode);
+            if (customer == null && scannedUid != null && scannedUid != memberCode) {
+              customer = await _supabase.findCustomerByIdentifier(scannedUid);
+            }
           } catch (e) {
             debugPrint('❌ [ScanHub] Member lookup failed: $e');
           }
@@ -423,7 +442,7 @@ class _ScanHubScreenState extends State<ScanHubScreen>
           final canonicalCode =
               (customer['member_code'] ?? '').toString().isNotEmpty
                   ? customer['member_code'].toString()
-                  : memberCode;
+                  : (scannedUid ?? memberCode);
           final memberName = (customer['full_name'] ??
                   customer['name'] ??
                   customer['email'] ??
@@ -456,6 +475,9 @@ class _ScanHubScreenState extends State<ScanHubScreen>
         Map<String, dynamic>? customer;
         try {
           customer = await _supabase.findCustomerByIdentifier(memberCode);
+          if (customer == null && scannedUid != null && scannedUid != memberCode) {
+            customer = await _supabase.findCustomerByIdentifier(scannedUid);
+          }
         } catch (e) {
           debugPrint('❌ [ScanHub] Customer lookup failed: $e');
         }
