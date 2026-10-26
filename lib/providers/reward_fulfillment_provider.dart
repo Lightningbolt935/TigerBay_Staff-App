@@ -51,6 +51,7 @@ class RewardFulfillmentProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Fetch redemptions from strips_ledger
       final response = await _supabase
           .from('strips_ledger')
           .select('''
@@ -68,10 +69,58 @@ class RewardFulfillmentProvider extends ChangeNotifier {
           .order('created_at', ascending: false)
           .limit(100);
 
-      _allRedemptions = (response as List)
-          .map((row) =>
-              RewardRedemption.fromJson(Map<String, dynamic>.from(row)))
+      final rawList = List<Map<String, dynamic>>.from(response as List);
+
+      // 2. Extract unique non-null user IDs
+      final userIds = rawList
+          .map((r) => r['user_id']?.toString().trim())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
           .toList();
+
+      // 3. Batch fetch user names from profiles table
+      Map<String, Map<String, dynamic>> profileMap = {};
+      if (userIds.isNotEmpty) {
+        try {
+          final profilesResponse = await _supabase
+              .from('profiles')
+              .select('id, full_name, email')
+              .filter('id', 'in', userIds);
+
+          for (final p in (profilesResponse as List)) {
+            final id = p['id']?.toString() ?? '';
+            if (id.isNotEmpty) {
+              profileMap[id] = Map<String, dynamic>.from(p);
+            }
+          }
+        } catch (profileError) {
+          debugPrint('⚠️ [RewardFulfillmentProvider] Could not load profiles: $profileError');
+        }
+      }
+
+      // 4. Resolve customer full_name into each redemption record
+      _allRedemptions = rawList.map((row) {
+        final uId = row['user_id']?.toString() ?? '';
+        final profile = profileMap[uId];
+        final fullName = profile?['full_name']?.toString().trim();
+        final email = profile?['email']?.toString().trim();
+
+        final displayName = (fullName != null && fullName.isNotEmpty)
+            ? fullName
+            : (uId.isNotEmpty
+                ? 'Guest (${uId.length >= 6 ? uId.substring(0, 6) : uId})'
+                : 'Guest');
+
+        row['profiles'] = {
+          'full_name': displayName,
+          'email': email ?? '',
+        };
+        row['customer_name'] = displayName;
+        row['customer_email'] = email ?? '';
+
+        return RewardRedemption.fromJson(row);
+      }).toList();
 
       _error = null;
     } catch (e) {
@@ -94,7 +143,7 @@ class RewardFulfillmentProvider extends ChangeNotifier {
     final originalItem = _allRedemptions[originalIndex];
     final now = DateTime.now();
 
-    // Optimistic update
+    // Optimistic UI update
     _allRedemptions[originalIndex] = originalItem.copyWith(
       status: 'completed',
       completedAt: now,
@@ -111,7 +160,7 @@ class RewardFulfillmentProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      // Revert if database update fails
+      // Revert if database write fails
       _allRedemptions[originalIndex] = originalItem;
       _error = 'Could not update status: $e';
       notifyListeners();
