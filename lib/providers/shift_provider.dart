@@ -8,8 +8,6 @@ import '../models/shift_log.dart';
 import '../models/branch.dart';
 import '../services/geofence_service.dart';
 
-/// Drives the Attendance screen: geofence validation, check-in,
-/// check-out, and shift duration using the `timesheets` table.
 class ShiftProvider extends ChangeNotifier {
   final GeofenceService _geofence;
 
@@ -59,53 +57,39 @@ class ShiftProvider extends ChangeNotifier {
     return v.distanceMeters <= radius;
   }
 
-  /// Converts a row from the `timesheets` table into a [ShiftLog] instance.
-  ShiftLog _shiftLogFromTimesheet(Map<String, dynamic> row) {
-    final clockInStr = row['clock_in']?.toString();
-    final clockOutStr = row['clock_out']?.toString();
-    final clockIn = clockInStr != null
-        ? DateTime.tryParse(clockInStr)?.toLocal() ?? DateTime.now()
-        : DateTime.now();
-    final clockOut =
-        clockOutStr != null ? DateTime.tryParse(clockOutStr)?.toLocal() : null;
-
-    final normalized = {
-      'id': row['id']?.toString() ?? '',
-      'staff_id': row['staff_id']?.toString() ?? '',
-      'branch_id': row['venue_id']?.toString() ?? '',
-      'check_in_time': clockIn.toIso8601String(),
-      if (clockOut != null) 'check_out_time': clockOut.toIso8601String(),
-      'check_in_lat': (row['device_latitude'] as num?)?.toDouble() ?? 0.0,
-      'check_in_lng': (row['device_longitude'] as num?)?.toDouble() ?? 0.0,
-      'check_in_wifi_bssid': 'N/A',
-      'status': clockOut == null
-          ? AppConstants.shiftActive
-          : AppConstants.shiftCompleted,
-      ...row,
-    };
-
+  /// Queries the live `branches` row to guarantee exact coordinates and radius.
+  Future<Branch> _fetchLiveBranch(Branch fallback) async {
     try {
-      return ShiftLog.fromJson(normalized);
-    } catch (_) {
-      return ShiftLog(
-        id: row['id']?.toString() ?? '',
-        staffId: row['staff_id']?.toString() ?? '',
-        branchId: row['venue_id']?.toString() ?? '',
-        checkInTime: clockIn,
-        checkOutTime: clockOut,
-        checkInLat: (row['device_latitude'] as num?)?.toDouble() ?? 0.0,
-        checkInLng: (row['device_longitude'] as num?)?.toDouble() ?? 0.0,
-        checkInWifiBssid: 'N/A',
-        status: clockOut == null
-            ? AppConstants.shiftActive
-            : AppConstants.shiftCompleted,
-      );
+      final client = Supabase.instance.client;
+      final parsedId = int.tryParse(fallback.id);
+
+      dynamic res;
+      if (parsedId != null) {
+        res = await client
+            .from('branches')
+            .select()
+            .eq('id', parsedId)
+            .maybeSingle();
+      } else if (fallback.nightCollinsBranchId.isNotEmpty) {
+        res = await client
+            .from('branches')
+            .select()
+            .eq('collins_venue_id', fallback.nightCollinsBranchId)
+            .maybeSingle();
+      }
+
+      if (res != null) {
+        return Branch.fromJson(Map<String, dynamic>.from(res));
+      }
+    } catch (e) {
+      debugPrint(
+          '⚠️ [ShiftProvider] Could not load live branch coordinates: $e');
     }
+    return fallback;
   }
 
-  /// Loads the current active shift (where clock_out IS NULL) from `timesheets`.
+  /// Loads the active shift from `timesheets`.
   Future<void> loadActiveShift(String staffId) async {
-    debugPrint('🔎 [ShiftProvider] Loading active shift for staff: $staffId');
     try {
       final client = Supabase.instance.client;
       final rows = await client
@@ -116,10 +100,8 @@ class ShiftProvider extends ChangeNotifier {
           .limit(1);
 
       if (rows.isNotEmpty && rows.first['clock_out'] == null) {
-        _activeShift =
-            _shiftLogFromTimesheet(Map<String, dynamic>.from(rows.first));
-        debugPrint(
-            '✅ [ShiftProvider] Found active timesheet: ${_activeShift?.id} clocked in at${_activeShift?.checkInTime}');
+        final row = Map<String, dynamic>.from(rows.first);
+        _activeShift = ShiftLog.fromJson(row);
         _restartTickerIfNeeded();
         notifyListeners();
         return;
@@ -148,7 +130,7 @@ class ShiftProvider extends ChangeNotifier {
           .limit(14);
 
       _recentShifts = rows
-          .map((r) => _shiftLogFromTimesheet(Map<String, dynamic>.from(r)))
+          .map((r) => ShiftLog.fromJson(Map<String, dynamic>.from(r)))
           .toList();
     } catch (e) {
       debugPrint('⚠️ [ShiftProvider] loadRecentShifts error: $e');
@@ -173,6 +155,7 @@ class ShiftProvider extends ChangeNotifier {
     Duration overlap(Map<String, ShiftLog> shifts, DateTime windowStart) {
       var total = Duration.zero;
       for (final s in shifts.values) {
+        if (s.isAbsent) continue;
         final end = s.checkOutTime ?? now;
         final from =
             s.checkInTime.isAfter(windowStart) ? s.checkInTime : windowStart;
@@ -186,14 +169,13 @@ class ShiftProvider extends ChangeNotifier {
     _weekTotal = overlap(byId, weekStart);
   }
 
-  /// Compares the live device position with the database branch coordinates.
+  /// Validates the device position against live branch coordinates.
   Future<void> refreshValidation(Branch branch) async {
     _isValidating = true;
     _error = null;
     notifyListeners();
     try {
-      debugPrint(
-          '📍 [ShiftProvider] Refreshing location validation for branch: ${branch.name} (lat:${branch.latitude}, lng: ${branch.longitude}, radius:${branch.geofenceRadiusMeters}m)');
+      final liveBranch = await _fetchLiveBranch(branch);
 
       _permissionState = await _geofence.ensurePermissions();
 
@@ -212,14 +194,12 @@ class ShiftProvider extends ChangeNotifier {
           break;
       }
 
-      _validation = await _geofence.validate(branch);
+      _validation = await _geofence.validate(liveBranch);
       _clockOutRadius = math.max(
-        branch.geofenceRadiusMeters,
+        liveBranch.geofenceRadiusMeters,
         clockOutToleranceMeters,
       );
       _error = null;
-      debugPrint(
-          '✅ [ShiftProvider] Validation result: inside=${_validation?.withinGeofence}, distance=${_validation?.distanceMeters.toStringAsFixed(1)}m, allowed=${branch.geofenceRadiusMeters}m');
     } catch (e) {
       _error = 'Unable to verify location ($e). Try again.';
       debugPrint('❌ [ShiftProvider] refreshValidation error: $e');
@@ -240,14 +220,16 @@ class ShiftProvider extends ChangeNotifier {
 
   Future<void> openAppSettings() => _geofence.openAppSettings();
 
-  /// Inserts a new record into `timesheets`.
+  /// Logs a new check-in to `timesheets`.
   Future<void> clockIn({
     required String staffId,
     required Branch branch,
+    String? staffName,
+    String? staffCode,
   }) async {
     if (!canToggleAttendance) {
-      debugPrint(
-          '⚠️ [ShiftProvider] Cannot clock in: not within geofence range.');
+      _error = 'Cannot clock in: outside branch geofence boundary.';
+      notifyListeners();
       return;
     }
     _isSubmitting = true;
@@ -255,23 +237,32 @@ class ShiftProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint(
-          '🚀 [ShiftProvider] Clocking in staff: $staffId at${branch.name}');
+      final liveBranch = await _fetchLiveBranch(branch);
       final position = await _geofence.getCurrentPosition();
       final now = DateTime.now();
 
       final distance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        branch.latitude,
-        branch.longitude,
+        liveBranch.latitude,
+        liveBranch.longitude,
       );
 
-      final venueId = branch.nightCollinsBranchId.isNotEmpty
-          ? branch.nightCollinsBranchId
-          : branch.id;
+      final isWithin = distance <= liveBranch.geofenceRadiusMeters;
+      if (!isWithin) {
+        throw Exception(
+            'Out of range: ${distance.round()}m from branch (allowed: ${liveBranch.geofenceRadiusMeters.round()}m)');
+      }
 
-      final client = Supabase.instance.client;
+      final venueId = liveBranch.nightCollinsBranchId.isNotEmpty
+          ? liveBranch.nightCollinsBranchId
+          : liveBranch.id;
+
+      final metadata = [
+        if (staffName != null && staffName.isNotEmpty) 'Name: $staffName',
+        if (staffCode != null && staffCode.isNotEmpty) 'Staff ID: $staffCode',
+      ].join(' | ');
+
       final payload = {
         'staff_id': staffId,
         'venue_id': venueId,
@@ -280,16 +271,15 @@ class ShiftProvider extends ChangeNotifier {
         'device_longitude': position.longitude,
         'distance_from_branch_meters':
             double.parse(distance.toStringAsFixed(2)),
-        'is_within_geofence': distance <= branch.geofenceRadiusMeters,
+        'is_within_geofence': true,
+        if (metadata.isNotEmpty) 'notes': metadata,
       };
 
+      final client = Supabase.instance.client;
       final res =
           await client.from('timesheets').insert(payload).select().single();
 
-      _activeShift = _shiftLogFromTimesheet(Map<String, dynamic>.from(res));
-      debugPrint(
-          '✅ [ShiftProvider] Clock-in recorded in timesheets table: ${_activeShift?.id}');
-
+      _activeShift = ShiftLog.fromJson(Map<String, dynamic>.from(res));
       _restartTickerIfNeeded();
       _error = null;
       unawaited(loadRecentShifts(staffId));
@@ -307,8 +297,6 @@ class ShiftProvider extends ChangeNotifier {
     if (_activeShift == null) return;
     if (!canClockOut) {
       final radius = clockOutRadius.toStringAsFixed(0);
-      debugPrint(
-          '⚠️ [ShiftProvider] Cannot clock out: not within ${radius}m range.');
       _error = 'You must be within ${radius}m of the branch to clock out.';
       notifyListeners();
       return;
@@ -318,16 +306,12 @@ class ShiftProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint(
-          '🚀 [ShiftProvider] Clocking out timesheet: ${_activeShift?.id}');
       final now = DateTime.now();
-
       final client = Supabase.instance.client;
+
       await client.from('timesheets').update({
         'clock_out': now.toIso8601String(),
       }).eq('id', _activeShift!.id);
-
-      debugPrint('✅ [ShiftProvider] Clock-out updated in timesheets.');
 
       _activeShift = _activeShift!.copyWith(
         checkOutTime: now,

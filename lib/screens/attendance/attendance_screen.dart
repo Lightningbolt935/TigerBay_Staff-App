@@ -38,9 +38,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When the user comes back from Location/App settings (e.g. after
-    // enabling GPS or granting the permission), re-run validation so the
-    // screen recovers without them having to tap anything.
     if (state == AppLifecycleState.paused) {
       _leftAppForSettings = true;
     } else if (state == AppLifecycleState.resumed && _leftAppForSettings) {
@@ -54,16 +51,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final shiftProvider = context.read<ShiftProvider>();
     final authStaff = context.read<AuthProvider>().staff;
 
-    // Load branch first — guaranteed non-null (falls back internally).
     if (staffProvider.branch == null) {
       await staffProvider.loadBranch();
     }
     final branch = staffProvider.branch;
     final staff = staffProvider.staff ?? authStaff;
 
-    // Run the shift lookup and location validation CONCURRENTLY: the GPS
-    // permission dialog + geofence check must never wait on (or be skipped
-    // by) a slow/hung shift query.
     await Future.wait([
       if (staff != null) shiftProvider.loadActiveShift(staff.id),
       if (branch != null) shiftProvider.refreshValidation(branch),
@@ -89,10 +82,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final shiftProvider = context.watch<ShiftProvider>();
     final branch = staffProvider.branch;
     final isClockedIn = shiftProvider.isClockedIn;
-    // Clock In requires the strict branch geofence; Clock Out uses a widened
-    // 150 m tolerance so GPS drift never locks a shift open.
-    final canAct =
-        isClockedIn ? shiftProvider.canClockOut : shiftProvider.canToggleAttendance;
+    final canAct = isClockedIn
+        ? shiftProvider.canClockOut
+        : shiftProvider.canToggleAttendance;
 
     return Scaffold(
       appBar: AppBar(
@@ -105,7 +97,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.gold,
+                    ),
                   )
                 : const Icon(Icons.refresh_rounded),
             onPressed: shiftProvider.isValidating ? null : _refreshLocation,
@@ -146,12 +141,16 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        color: isClockedIn ? AppColors.successBg : AppColors.surfaceMuted,
+                        color: isClockedIn
+                            ? AppColors.successBg
+                            : AppColors.surfaceMuted,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         isClockedIn ? Icons.check_circle : Icons.schedule,
-                        color: isClockedIn ? AppColors.success : AppColors.textSecondary,
+                        color: isClockedIn
+                            ? AppColors.success
+                            : AppColors.textSecondary,
                         size: 36,
                       ),
                     ),
@@ -160,7 +159,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       isClockedIn
                           ? 'Clocked in at ${Formatters.time(shiftProvider.activeShift!.checkInTime)}'
                           : 'Not clocked in',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -173,10 +175,16 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     Row(
                       children: [
                         Expanded(
-                          child: _labelValue('Date', Formatters.date(DateTime.now())),
+                          child: _labelValue(
+                            'Date',
+                            Formatters.date(DateTime.now()),
+                          ),
                         ),
                         Expanded(
-                          child: _labelValue('Branch', branch?.name ?? '—'),
+                          child: _labelValue(
+                            'Branch',
+                            branch?.name ?? '—',
+                          ),
                         ),
                       ],
                     ),
@@ -185,6 +193,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ),
             ),
             const SizedBox(height: 24),
+
             // ── Worked-hours summary ────────────────────────────────────
             Row(
               children: [
@@ -204,13 +213,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ],
             ),
             const SizedBox(height: 28),
-            const Text('Recent Shifts',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+
+            const Text(
+              'Recent Shifts',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
             const SizedBox(height: 12),
             _buildShiftHistory(shiftProvider),
             const SizedBox(height: 28),
-            const Text('Location & Network Validation',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+
+            const Text(
+              'Location & Network Validation',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -219,12 +234,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 StatusChip(
                   label: 'GPS Verified',
                   icon: Icons.location_on_outlined,
-                  background: (shiftProvider.validation?.withinGeofence ?? false)
-                      ? AppColors.successBg
-                      : AppColors.dangerBg,
-                  foreground: (shiftProvider.validation?.withinGeofence ?? false)
-                      ? AppColors.success
-                      : AppColors.danger,
+                  background:
+                      (shiftProvider.validation?.withinGeofence ?? false)
+                          ? AppColors.successBg
+                          : AppColors.dangerBg,
+                  foreground:
+                      (shiftProvider.validation?.withinGeofence ?? false)
+                          ? AppColors.success
+                          : AppColors.danger,
                 ),
                 if (isClockedIn)
                   StatusChip(
@@ -262,10 +279,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _resolveGuardMessage(
-                        shiftProvider,
-                        branch,
-                      ),
+                      _resolveGuardMessage(shiftProvider, branch),
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
@@ -274,6 +288,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             ),
             const SizedBox(height: 28),
             ..._buildPermissionCta(shiftProvider),
+
+            // ── Clock In / Clock Out Action Button ──────────────────────
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
@@ -282,8 +298,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   side: BorderSide(
                     color: canAct ? AppColors.primaryBlack : AppColors.border,
                   ),
-                  shape:
-                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onPressed: canAct && !shiftProvider.isSubmitting
                     ? () async {
@@ -292,13 +309,21 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                         if (isClockedIn) {
                           await shiftProvider.clockOut();
                         } else {
-                          await shiftProvider.clockIn(staffId: staff.id, branch: branch);
+                          await shiftProvider.clockIn(
+                            staffId: staff.id,
+                            branch: branch,
+                            staffName: staff.name,
+                            staffCode: staff.staffId,
+                          );
                         }
                       }
                     : null,
                 child: shiftProvider.isSubmitting
                     ? const SizedBox(
-                        width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : Text(isClockedIn ? 'Clock Out' : 'Clock In'),
               ),
             ),
@@ -306,11 +331,21 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             Center(
               child: Column(
                 children: [
-                  Text('Staff ID: ${staffProvider.staff?.staffId ?? '—'}',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(
+                    'Staff ID: ${staffProvider.staff?.staffId ?? '—'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  const Text('Biometric & GPS encryption active',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  const Text(
+                    'Biometric & GPS encryption active',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -324,7 +359,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
       ],
@@ -339,7 +377,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           child: SizedBox(
             width: 22,
             height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.gold,
+            ),
           ),
         ),
       );
@@ -376,14 +417,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     );
   }
 
-  /// Contextual call-to-action shown whenever location access is not ready:
-  /// • GPS toggle OFF   → "Turn On Location" (opens Location settings)
-  /// • Permission denied → "Allow Location" (re-triggers the native dialog)
-  /// • Blocked ("Don't ask again") → "Open App Settings"
-  /// When everything is fine this emits nothing.
   List<Widget> _buildPermissionCta(ShiftProvider shiftProvider) {
-    // Fully granted (or still running the initial check that will itself
-    // pop the native dialog) — no manual action needed from the user.
     if (shiftProvider.permissionState == GeoPermissionState.granted ||
         shiftProvider.isValidating) {
       return const [];
@@ -401,7 +435,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             onPressed: shiftProvider.isValidating
                 ? null
                 : () async {
-                    await context.read<ShiftProvider>().openDeviceLocationSettings();
+                    await context
+                        .read<ShiftProvider>()
+                        .openDeviceLocationSettings();
                   },
           ),
         ));
@@ -457,12 +493,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     return widgets;
   }
 
-  /// Produces the correct guard copy:
-  /// • All checks pass → success message for the current action
-  /// • Clocked in → widened 150 m clock-out range messaging
-  /// • Outside geofence → names the branch and shows the required radius
-  /// • Error / null → show error or fallback
-  String _resolveGuardMessage(ShiftProvider shiftProvider, branch) {
+  String _resolveGuardMessage(ShiftProvider shiftProvider, dynamic branch) {
     if (shiftProvider.error != null) return shiftProvider.error!;
     final v = shiftProvider.validation;
     if (v == null) {
@@ -496,11 +527,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
 // ── Live Range Indicator ─────────────────────────────────────────────────────
 
-/// Shows a colour-coded distance pill: 🟢 Inside Range or 🔴 Outside Range
-/// with the exact metres reading and the allowed radius from the database.
 class _LiveRangeIndicator extends StatelessWidget {
-  final dynamic validation; // GeoValidationResult?
-  final dynamic branch; // Branch?
+  final dynamic validation;
+  final dynamic branch;
   final bool isValidating;
   final String? error;
 
@@ -513,26 +542,25 @@ class _LiveRangeIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Still loading
     if (isValidating) {
       return _buildShell(
         isInside: null,
         distanceText: 'Checking…',
-        radiusText: branch != null ? '${branch.geofenceRadiusMeters.toInt()}m' : '—',
+        radiusText:
+            branch != null ? '${branch.geofenceRadiusMeters.toInt()}m' : '—',
       );
     }
 
-    // Error state — GPS failed or permission denied
     if (error != null) {
       return _buildShell(
         isInside: false,
         distanceText: 'Error',
-        radiusText: branch != null ? '${branch.geofenceRadiusMeters.toInt()}m' : '—',
+        radiusText:
+            branch != null ? '${branch.geofenceRadiusMeters.toInt()}m' : '—',
         overrideLabel: 'Location Error — Tap ↻',
       );
     }
 
-    // No branch loaded yet
     if (validation == null || branch == null) {
       return const SizedBox.shrink();
     }
@@ -583,7 +611,6 @@ class _LiveRangeIndicator extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Colour dot
           Container(
             width: 10,
             height: 10,
@@ -593,7 +620,6 @@ class _LiveRangeIndicator extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Status label
           Expanded(
             child: Text(
               statusLabel,
@@ -604,7 +630,6 @@ class _LiveRangeIndicator extends StatelessWidget {
               ),
             ),
           ),
-          // Distance / radius pill
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -645,8 +670,11 @@ class _HoursCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(
+            label,
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 6),
           Text(
             Formatters.shortDuration(duration),
@@ -668,6 +696,7 @@ class _ShiftRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = shift.isActive;
+    final isAbsent = shift.isAbsent;
     final duration = shift.currentDuration();
 
     return Padding(
@@ -678,13 +707,19 @@ class _ShiftRow extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: isActive ? AppColors.successBg : AppColors.goldPale,
+              color: isAbsent
+                  ? AppColors.dangerBg
+                  : (isActive ? AppColors.successBg : AppColors.goldPale),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isActive ? Icons.login_rounded : Icons.history_rounded,
+              isAbsent
+                  ? Icons.cancel_outlined
+                  : (isActive ? Icons.login_rounded : Icons.history_rounded),
               size: 18,
-              color: isActive ? AppColors.success : AppColors.gold,
+              color: isAbsent
+                  ? AppColors.danger
+                  : (isActive ? AppColors.success : AppColors.gold),
             ),
           ),
           const SizedBox(width: 12),
@@ -694,19 +729,40 @@ class _ShiftRow extends StatelessWidget {
               children: [
                 Text(
                   Formatters.dayLabel(shift.checkInTime),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${Formatters.time(shift.checkInTime)} → '
-                  '${shift.checkOutTime != null ? Formatters.time(shift.checkOutTime!) : '—'}',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
+                  isAbsent
+                      ? 'Absent (No shift recorded)'
+                      : '${Formatters.time(shift.checkInTime)} → ${shift.checkOutTime != null ? Formatters.time(shift.checkOutTime!) : '—'}',
+                  style: TextStyle(
+                    color:
+                        isAbsent ? AppColors.danger : AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
           ),
-          if (isActive)
+          if (isAbsent)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.dangerBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'ABSENT',
+                style: TextStyle(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            )
+          else if (isActive)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -716,9 +772,10 @@ class _ShiftRow extends StatelessWidget {
               child: Text(
                 '${Formatters.shortDuration(duration)} · live',
                 style: const TextStyle(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11),
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
               ),
             )
           else

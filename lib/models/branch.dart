@@ -1,10 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// Maps to the `branches` table.
-/// This is the single source of truth for geofencing, Wi-Fi verification,
-/// and Night Collins booking-API credentials for a given branch.
-/// Nothing about location/network validation should ever be hardcoded
-/// in the app — it must always flow from this model.
+/// Maps to the `branches` table in Supabase.
 class Branch extends Equatable {
   final String id;
   final String name;
@@ -30,15 +26,24 @@ class Branch extends Equatable {
 
   factory Branch.fromJson(Map<String, dynamic> json) {
     return Branch(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      latitude: (json['latitude'] as num).toDouble(),
-      longitude: (json['longitude'] as num).toDouble(),
-      geofenceRadiusMeters: (json['geofenceRadiusMeters'] as num).toDouble(),
-      wifiSsid: json['wifiSsid'] as String,
-      wifiBssid: json['wifiBssid'] as String,
-      nightCollinsBranchId: json['nightCollinsBranchId'] as String,
-      nightCollinsApiKey: json['nightCollinsApiKey'] as String,
+      id: json['id']?.toString() ?? '',
+      name: (json['name'] ?? json['title'])?.toString() ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      geofenceRadiusMeters: (json['geofence_radius_meters'] ??
+                  json['geofenceRadiusMeters'] as num?)
+              ?.toDouble() ??
+          1000.0,
+      wifiSsid: (json['wifi_ssid'] ?? json['wifiSsid'])?.toString() ?? '',
+      wifiBssid: (json['wifi_bssid'] ?? json['wifiBssid'])?.toString() ?? '',
+      nightCollinsBranchId:
+          (json['collins_venue_id'] ?? json['nightCollinsBranchId'])
+                  ?.toString() ??
+              '',
+      nightCollinsApiKey:
+          (json['night_collins_api_key'] ?? json['nightCollinsApiKey'])
+                  ?.toString() ??
+              '',
     );
   }
 
@@ -48,11 +53,11 @@ class Branch extends Equatable {
       'name': name,
       'latitude': latitude,
       'longitude': longitude,
-      'geofenceRadiusMeters': geofenceRadiusMeters,
-      'wifiSsid': wifiSsid,
-      'wifiBssid': wifiBssid,
-      'nightCollinsBranchId': nightCollinsBranchId,
-      'nightCollinsApiKey': nightCollinsApiKey,
+      'geofence_radius_meters': geofenceRadiusMeters,
+      'wifi_ssid': wifiSsid,
+      'wifi_bssid': wifiBssid,
+      'collins_venue_id': nightCollinsBranchId,
+      'night_collins_api_key': nightCollinsApiKey,
     };
   }
 
