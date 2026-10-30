@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.tigerbay_staff_app"
+    namespace = "com.tigerbay.staff"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
