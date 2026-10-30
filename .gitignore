@@ -55,3 +55,6 @@ supabase/.temp/
 .env
 .env.*
 !.env.example
+
+android/key.properties
+android/app/upload-keystore.jks
