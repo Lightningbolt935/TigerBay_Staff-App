@@ -1,8 +1,9 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- ── Internet & Network State ────────────────────────────────────────
          Required by WebView (Access Collins widget), Supabase, and all HTTP
-         calls.  ACCESS_NETWORK_STATE lets the app detect offline state before
+         calls. ACCESS_NETWORK_STATE lets the app detect offline state before
          attempting network operations.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -24,15 +25,15 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- ── Storage / Media ──────────────────────────────────────────────────
-         image_picker needs gallery access to let managers choose existing
-         photos for catalog items and rewards.
-         READ_EXTERNAL_STORAGE applies to Android ≤ 12 (API ≤ 32).
-         READ_MEDIA_IMAGES applies to Android 13+ (API 33+).
+         image_picker (^1.1.2) uses the modern Android Photo Picker on API 33+,
+         which requires no storage or media permissions.
+         Enforce removal of broad media access to comply with Google Play policy.
     -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
 
     <!-- ── Biometrics ───────────────────────────────────────────────────────
          USE_BIOMETRIC is the unified permission for fingerprint, face, and
@@ -54,10 +55,6 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
@@ -67,17 +64,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Don't delete the meta-data below.
-             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

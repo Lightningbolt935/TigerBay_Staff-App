@@ -58,3 +58,7 @@ supabase/.temp/
 
 android/key.properties
 android/app/upload-keystore.jks
+
+**/android/key.properties
+**/*.jks
+**/*.keystore
