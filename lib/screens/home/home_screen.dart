@@ -6,7 +6,6 @@ import '../../providers/staff_provider.dart';
 import '../attendance/attendance_screen.dart';
 import '../bookings/branch_bookings_dashboard_screen.dart';
 import '../bookings/collins_venue_mapper.dart';
-import '../catalog/catalog_manager_screen.dart';
 import '../scan/scan_hub_screen.dart';
 import '../rewards/rewards_fulfillment_screen.dart';
 import '../profile/staff_profile_screen.dart';
@@ -69,7 +68,6 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                // ── Replaced Table Control with Rewards Fulfillment ─────────
                 _actionCard(
                   context,
                   icon: Icons.inventory_2_outlined,
@@ -113,18 +111,6 @@ class HomeScreen extends StatelessWidget {
                       ),
                     );
                   },
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.restaurant_menu_outlined,
-                  title: 'Catalog',
-                  subtitle: 'Manage items',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CatalogManagerScreen(),
-                    ),
-                  ),
                 ),
                 _actionCard(
                   context,
