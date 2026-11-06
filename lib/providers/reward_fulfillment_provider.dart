@@ -5,6 +5,11 @@ import '../models/reward_redemption.dart';
 class RewardFulfillmentProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  /// The dynamic branch ID of the logged-in staff member from the database
+  final int? branchId;
+
+  RewardFulfillmentProvider({this.branchId});
+
   List<RewardRedemption> _allRedemptions = [];
   bool _isLoading = false;
   String? _error;
@@ -69,7 +74,7 @@ class RewardFulfillmentProvider extends ChangeNotifier {
           .order('created_at', ascending: false)
           .limit(100);
 
-      final rawList = List<Map<String, dynamic>>.from(response as List);
+      final rawList = List>.from(response as List);
 
       // 2. Extract unique non-null user IDs
       final userIds = rawList
@@ -79,13 +84,13 @@ class RewardFulfillmentProvider extends ChangeNotifier {
           .toSet()
           .toList();
 
-      // 3. Batch fetch user names from profiles table
+      // 3. Batch fetch user names and home branch IDs from profiles table
       Map<String, Map<String, dynamic>> profileMap = {};
       if (userIds.isNotEmpty) {
         try {
           final profilesResponse = await _supabase
               .from('profiles')
-              .select('id, full_name, email')
+              .select('id, full_name, email, home_site_id')
               .filter('id', 'in', userIds);
 
           for (final p in (profilesResponse as List)) {
@@ -95,14 +100,28 @@ class RewardFulfillmentProvider extends ChangeNotifier {
             }
           }
         } catch (profileError) {
-          debugPrint('⚠️ [RewardFulfillmentProvider] Could not load profiles: $profileError');
+          debugPrint(
+              '⚠️ [RewardFulfillmentProvider] Could not load profiles: $profileError');
         }
       }
 
-      // 4. Resolve customer full_name into each redemption record
-      _allRedemptions = rawList.map((row) {
+      // 4. Resolve customer data and dynamically filter by branch
+      final List<RewardRedemption> loadedList = [];
+
+      for (final row in rawList) {
         final uId = row['user_id']?.toString() ?? '';
         final profile = profileMap[uId];
+
+        // Dynamic Database Filter: Only show records belonging to the staff's branch
+        if (branchId != null) {
+          final customerBranchId =
+              profile?['home_site_id'] ?? row['branch_id'];
+          if (customerBranchId == null ||
+              customerBranchId.toString() != branchId.toString()) {
+            continue; // Skip redemptions from other branches
+          }
+        }
+
         final fullName = profile?['full_name']?.toString().trim();
         final email = profile?['email']?.toString().trim();
 
@@ -119,9 +138,10 @@ class RewardFulfillmentProvider extends ChangeNotifier {
         row['customer_name'] = displayName;
         row['customer_email'] = email ?? '';
 
-        return RewardRedemption.fromJson(row);
-      }).toList();
+        loadedList.add(RewardRedemption.fromJson(row));
+      }
 
+      _allRedemptions = loadedList;
       _error = null;
     } catch (e) {
       _error = 'Failed to load reward redemptions: $e';
