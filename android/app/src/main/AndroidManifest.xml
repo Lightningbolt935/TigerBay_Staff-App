@@ -47,7 +47,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
-            android:name=".MainActivity"
+            android:name="com.tigerbay.staff.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

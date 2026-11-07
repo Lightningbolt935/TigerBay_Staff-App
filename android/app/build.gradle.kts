@@ -32,11 +32,21 @@ android {
         versionName = flutter.versionName
     }
 
+    // Ensures 16 KB page alignment for uncompressed shared native libraries (.so)
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
     signingConfigs {
         create("release") {
             keyAlias = keystoreProperties["keyAlias"] as String?
             keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            storeFile = keystoreProperties["storeFile"]?.let { path ->
+                val appDirKeystore = file(path)
+                if (appDirKeystore.exists()) appDirKeystore else rootProject.file(path)
+            }
             storePassword = keystoreProperties["storePassword"] as String?
         }
     }
@@ -49,7 +59,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val hasReleaseSigning = keystorePropertiesFile.exists() && keystoreProperties["keyAlias"] != null
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
