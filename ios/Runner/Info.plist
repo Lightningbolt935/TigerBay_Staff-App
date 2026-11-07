@@ -2,72 +2,62 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleDisplayName</key>
-	<string>TigerBay Staff</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>tigerbay_staff_app</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>TigerBay Staff</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>tigerbay_staff_app</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(FLUTTER_BUILD_NAME)</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleVersion</key>
+    <string>$(FLUTTER_BUILD_NUMBER)</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>CADisableMinimumFrameDurationOnPhone</key>
+    <true/>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
 
-	<!-- Location Permissions -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need your location to verify you are physically present at the Tigerbay branch to clock in or out.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We need your location to verify your presence at the branch for attendance logging.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>We need your location to verify your presence at the branch for attendance logging.</string>
+    <!-- Location: Foreground branch attendance verification only -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>We need your location to verify you are physically present at the Tigerbay branch to clock in or out.</string>
 
-	<!-- Camera & QR Scanner Permissions -->
-	<key>NSCameraUsageDescription</key>
-	<string>We need access to your camera to scan member loyalty QR codes and to capture new photo previews for catalog items and rewards.</string>
+    <!-- Camera: QR Loyalty scanning and photo capture -->
+    <key>NSCameraUsageDescription</key>
+    <string>We need access to your camera to scan member loyalty QR codes and to capture new photo previews for catalog items and rewards.</string>
 
-	<!-- Photo Library Permissions -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photo library to select dish and reward image previews for the catalog.</string>
+    <!-- Photo Library: Uploading dish and reward images -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>We need access to your photo library to select dish and reward image previews for the catalog.</string>
 
-	<!-- Microphone Permission -->
-	<key>NSMicrophoneUsageDescription</key>
-	<string>We need access to your microphone when capturing media content for catalog items.</string>
-
-	<!-- Face ID / Biometric Permissions -->
-	<key>NSFaceIDUsageDescription</key>
-	<string>TigerBay uses Face ID to quickly verify device release authorization.</string>
+    <!-- Face ID: Quick device release and shift authentication -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>TigerBay uses Face ID to quickly verify device release authorization.</string>
 </dict>
 </plist>

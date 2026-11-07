@@ -5,10 +5,11 @@ import '../models/reward_redemption.dart';
 class RewardFulfillmentProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// The dynamic branch ID of the logged-in staff member from the database
-  final int? branchId;
+  /// The dynamic branch ID of the logged-in staff member
+  final String? branchId;
 
-  RewardFulfillmentProvider({this.branchId});
+  RewardFulfillmentProvider({dynamic branchId})
+      : branchId = branchId?.toString().trim();
 
   List<RewardRedemption> _allRedemptions = [];
   bool _isLoading = false;
@@ -56,27 +57,35 @@ class RewardFulfillmentProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Fetch redemptions from strips_ledger
-      final response = await _supabase
-          .from('strips_ledger')
-          .select('''
+      // 1. Build query against strips_ledger with branch_id included
+      var query = _supabase.from('strips_ledger').select('''
             id,
             user_id,
             amount,
             transaction_type,
             description,
+            branch_id,
             created_at,
             status,
             completed_at,
             completed_by
-          ''')
-          .eq('transaction_type', 'redeem')
-          .order('created_at', ascending: false)
-          .limit(100);
+          ''').eq('transaction_type', 'redeem');
 
-      final rawList = List>.from(response as List);
+      // 2. Query branch at database level if branchId is provided
+      if (branchId != null && branchId!.isNotEmpty) {
+        final parsedBranchId = int.tryParse(branchId!);
+        if (parsedBranchId != null) {
+          query = query.eq('branch_id', parsedBranchId);
+        } else {
+          query = query.eq('branch_id', branchId!);
+        }
+      }
 
-      // 2. Extract unique non-null user IDs
+      final response =
+          await query.order('created_at', ascending: false).limit(100);
+      final rawList = (response as List).cast<Map<String, dynamic>>();
+
+      // 3. Extract unique non-null user IDs
       final userIds = rawList
           .map((r) => r['user_id']?.toString().trim())
           .whereType<String>()
@@ -84,14 +93,14 @@ class RewardFulfillmentProvider extends ChangeNotifier {
           .toSet()
           .toList();
 
-      // 3. Batch fetch user names and home branch IDs from profiles table
+      // 4. Batch fetch guest profiles using proper inFilter syntax
       Map<String, Map<String, dynamic>> profileMap = {};
       if (userIds.isNotEmpty) {
         try {
           final profilesResponse = await _supabase
               .from('profiles')
               .select('id, full_name, email, home_site_id')
-              .filter('id', 'in', userIds);
+              .inFilter('id', userIds);
 
           for (final p in (profilesResponse as List)) {
             final id = p['id']?.toString() ?? '';
@@ -105,47 +114,39 @@ class RewardFulfillmentProvider extends ChangeNotifier {
         }
       }
 
-      // 4. Resolve customer data and dynamically filter by branch
+      // 5. Construct display entities
       final List<RewardRedemption> loadedList = [];
-
-      for (final row in rawList) {
+      for (final rawRow in rawList) {
+        final row = Map<String, dynamic>.from(rawRow);
         final uId = row['user_id']?.toString() ?? '';
         final profile = profileMap[uId];
 
-        // Dynamic Database Filter: Only show records belonging to the staff's branch
-        if (branchId != null) {
-          final customerBranchId =
-              profile?['home_site_id'] ?? row['branch_id'];
-          if (customerBranchId == null ||
-              customerBranchId.toString() != branchId.toString()) {
-            continue; // Skip redemptions from other branches
-          }
-        }
-
         final fullName = profile?['full_name']?.toString().trim();
         final email = profile?['email']?.toString().trim();
-
         final displayName = (fullName != null && fullName.isNotEmpty)
             ? fullName
             : (uId.isNotEmpty
                 ? 'Guest (${uId.length >= 6 ? uId.substring(0, 6) : uId})'
                 : 'Guest');
 
+        // Bridge field names to ensure RewardRedemption model parses cleanly
+        row['customer_name'] = displayName;
+        row['customer_email'] = email ?? '';
+        row['reward_title'] = row['description'] ?? 'Reward Redemption';
         row['profiles'] = {
           'full_name': displayName,
           'email': email ?? '',
         };
-        row['customer_name'] = displayName;
-        row['customer_email'] = email ?? '';
 
         loadedList.add(RewardRedemption.fromJson(row));
       }
 
       _allRedemptions = loadedList;
       _error = null;
-    } catch (e) {
+    } catch (e, stack) {
       _error = 'Failed to load reward redemptions: $e';
-      debugPrint('❌ [RewardFulfillmentProvider] loadRedemptions error: $e');
+      debugPrint(
+          '❌ [RewardFulfillmentProvider] loadRedemptions error: $e\n$stack');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -180,7 +181,6 @@ class RewardFulfillmentProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      // Revert if database write fails
       _allRedemptions[originalIndex] = originalItem;
       _error = 'Could not update status: $e';
       notifyListeners();
@@ -220,7 +220,6 @@ class RewardFulfillmentProvider extends ChangeNotifier {
 
   void subscribeToRealtime() {
     _realtimeSubscription?.unsubscribe();
-
     _realtimeSubscription = _supabase
         .channel('public:strips_ledger')
         .onPostgresChanges(
@@ -230,7 +229,6 @@ class RewardFulfillmentProvider extends ChangeNotifier {
           callback: (payload) {
             final newRecord = payload.newRecord;
             if (newRecord.isEmpty) return;
-
             if (newRecord['transaction_type'] == 'redeem') {
               loadRedemptions();
             }

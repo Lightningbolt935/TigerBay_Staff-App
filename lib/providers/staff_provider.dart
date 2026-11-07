@@ -5,6 +5,53 @@ import '../models/branch.dart';
 import '../services/pin_service.dart';
 import 'auth_provider.dart';
 
+/// Role hierarchy matching dropdown values: Concierge, Staff, Manager, Director.
+enum StaffRole {
+  concierge('Concierge'),
+  staff('Staff'),
+  manager('Manager'),
+  director('Director');
+
+  final String label;
+  const StaffRole(this.label);
+
+  static StaffRole fromString(String? role) {
+    if (role == null) return StaffRole.staff;
+    switch (role.trim().toLowerCase()) {
+      case 'concierge':
+        return StaffRole.concierge;
+      case 'manager':
+        return StaffRole.manager;
+      case 'director':
+        return StaffRole.director;
+      case 'staff':
+      default:
+        return StaffRole.staff;
+    }
+  }
+
+  /// 1. Bookings: All roles can view bookings
+  bool get canViewBookings => true;
+
+  /// 2. Redeem Rewards: Staff, Manager, Director (Concierge cannot)
+  bool get canRedeemRewards =>
+      this == StaffRole.staff ||
+      this == StaffRole.manager ||
+      this == StaffRole.director;
+
+  /// 3. Award Strips (Give points): Manager & Director only
+  bool get canAwardStrips =>
+      this == StaffRole.manager || this == StaffRole.director;
+
+  /// 4. Complete / Revert Rewards: Manager & Director only
+  bool get canCompleteRewards =>
+      this == StaffRole.manager || this == StaffRole.director;
+
+  /// 5. Access Fulfillment Queue Screen: Manager & Director only
+  bool get canAccessFulfillmentScreen =>
+      this == StaffRole.manager || this == StaffRole.director;
+}
+
 /// Holds the signed-in StaffMember's operational context (permissions,
 /// active Branch) loaded directly from Supabase database tables.
 class StaffProvider extends ChangeNotifier {
@@ -22,12 +69,42 @@ class StaffProvider extends ChangeNotifier {
   Branch? _branch;
   bool _isLoading = false;
   String? _error;
+  String? _liveDbRole;
 
   StaffMember? get staff => _authProvider.staff;
   Branch? get branch => _branch;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isSignedIn => _authProvider.isSignedIn;
+
+  // ── Role Hierarchy & Permissions ──────────────────────────────
+  StaffRole get role => StaffRole.fromString(_liveDbRole ?? staff?.role);
+
+  bool get canViewBookings => role.canViewBookings;
+  bool get canRedeemRewards => role.canRedeemRewards;
+  bool get canAwardStrips => role.canAwardStrips;
+  bool get canCompleteRewards => role.canCompleteRewards;
+  bool get canAccessFulfillment => role.canAccessFulfillmentScreen;
+
+  // ── Backward-Compatible Legacy Permissions ────────────────────
+  bool get canAlterBooking =>
+      role == StaffRole.manager ||
+      role == StaffRole.director ||
+      (staff?.permissions.canAlterBooking ?? false);
+
+  bool get canIssuePoints => canAwardStrips;
+
+  bool get canRedeemVouchers => canRedeemRewards;
+
+  bool get canOverrideTables =>
+      role == StaffRole.manager ||
+      role == StaffRole.director ||
+      (staff?.permissions.canOverrideTables ?? false);
+
+  bool get canViewAnalytics =>
+      role == StaffRole.manager ||
+      role == StaffRole.director ||
+      (staff?.permissions.canViewAnalytics ?? false);
 
   /// Converts a Supabase `branches` row into a typed [Branch] model.
   Branch _branchFromMap(Map<String, dynamic> m) {
@@ -66,25 +143,23 @@ class StaffProvider extends ChangeNotifier {
     }
   }
 
-  /// Loads Branch coordinates and details strictly from the database `branches` table.
+  /// Loads Branch coordinates and role strictly from the database tables.
   Future<void> loadBranch() async {
     if (staff == null) return;
-
     _setLoading(true);
     _error = null;
 
     try {
       final client = Supabase.instance.client;
       Map<String, dynamic>? branchRow;
-
       String? branchIdRaw = staff!.branchId?.trim();
       String? venueIdRaw;
 
-      // 1. Fetch live assigned branch and venue IDs for the current staff member
+      // 1. Fetch live assigned branch, venue, and role for current staff member
       try {
         final staffData = await client
             .from('staff_members')
-            .select('branch_id, venue_id')
+            .select('branch_id, venue_id, role')
             .or('staff_id.eq.${staff!.staffId},id.eq.${staff!.id}')
             .maybeSingle();
 
@@ -94,6 +169,9 @@ class StaffProvider extends ChangeNotifier {
           }
           if (staffData['venue_id'] != null) {
             venueIdRaw = staffData['venue_id'].toString();
+          }
+          if (staffData['role'] != null) {
+            _liveDbRole = staffData['role'].toString();
           }
         }
       } catch (e) {
@@ -154,7 +232,7 @@ class StaffProvider extends ChangeNotifier {
       if (branchRow != null) {
         _branch = _branchFromMap(branchRow);
         debugPrint(
-            '📍 [StaffProvider] Loaded branch from DB: ${_branch?.name} (lat:${_branch?.latitude}, lng: ${_branch?.longitude}, radius:${_branch?.geofenceRadiusMeters}m)');
+            '📍 [StaffProvider] Loaded branch: ${_branch?.name} | Active Role: ${role.label}');
         _error = null;
       } else {
         _error = 'No active branch found in the database.';
@@ -187,6 +265,7 @@ class StaffProvider extends ChangeNotifier {
   void _onAuthChanged() {
     if (!_authProvider.isSignedIn) {
       _branch = null;
+      _liveDbRole = null;
     }
     notifyListeners();
   }
@@ -194,14 +273,9 @@ class StaffProvider extends ChangeNotifier {
   Future<void> signOut() async {
     await _authProvider.signOut();
     _branch = null;
+    _liveDbRole = null;
     notifyListeners();
   }
-
-  bool get canAlterBooking => staff?.permissions.canAlterBooking ?? false;
-  bool get canIssuePoints => staff?.permissions.canIssuePoints ?? false;
-  bool get canRedeemVouchers => staff?.permissions.canRedeemVouchers ?? false;
-  bool get canOverrideTables => staff?.permissions.canOverrideTables ?? false;
-  bool get canViewAnalytics => staff?.permissions.canViewAnalytics ?? false;
 
   @override
   void dispose() {

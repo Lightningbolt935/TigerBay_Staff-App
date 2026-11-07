@@ -13,10 +13,14 @@ import 'screens/auth/pin_lock_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: AppConstants.supabaseUrl,
-    publishableKey: AppConstants.supabaseAnonKey,
-  );
+  try {
+    await Supabase.initialize(
+      url: AppConstants.supabaseUrl,
+      publishableKey: AppConstants.supabaseAnonKey,
+    );
+  } catch (e, stack) {
+    debugPrint('Supabase initialization failed: $e\n$stack');
+  }
 
   runApp(const TigerBayStaffApp());
 }
@@ -75,13 +79,23 @@ class _AppRouterState extends State<AppRouter> {
   }
 
   Future<void> _checkSession() async {
-    final authProvider = context.read<AuthProvider>();
-    final restored = await authProvider.restoreSession();
-    if (mounted) {
-      setState(() {
-        _hasSession = restored;
-        _checked = true;
-      });
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final restored = await authProvider.restoreSession();
+      if (mounted) {
+        setState(() {
+          _hasSession = restored;
+          _checked = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to restore session: $e');
+      if (mounted) {
+        setState(() {
+          _hasSession = false;
+          _checked = true;
+        });
+      }
     }
   }
 

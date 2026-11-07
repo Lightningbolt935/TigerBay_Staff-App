@@ -20,6 +20,119 @@ class HomeScreen extends StatelessWidget {
     final staffProvider = context.watch<StaffProvider>();
     final staff = staffProvider.staff;
     final branch = staffProvider.branch;
+    final role = staffProvider.role;
+
+    // ── Build Action Cards Strictly by Role Hierarchy ───────────
+    final List<Widget> actionCards = [
+      // 1. Bookings: Accessible to Concierge, Staff, Manager, Director
+      _actionCard(
+        context,
+        icon: Icons.calendar_month_outlined,
+        title: 'Bookings',
+        subtitle: 'Live reservations',
+        onTap: () {
+          final branchName = branch?.name ?? 'Kingsbury';
+          final branchId = CollinsVenueMapper.getBranchNumericId(branchName);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BranchBookingsDashboardScreen(
+                branchId: branchId,
+                branchName: branchName,
+              ),
+            ),
+          );
+        },
+      ),
+
+      // 2. Scan & Redeem: Accessible to Staff, Manager, Director (Hidden for Concierge)
+      if (staffProvider.canRedeemRewards)
+        _actionCard(
+          context,
+          icon: Icons.card_giftcard_outlined,
+          title: 'Scan & Redeem',
+          subtitle: 'Claim rewards',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ScanHubScreen(mode: ScanMode.redeem),
+            ),
+          ),
+        ),
+
+      // 3. Scan & Issue (Award Points): Manager & Director only
+      if (staffProvider.canAwardStrips)
+        _actionCard(
+          context,
+          icon: Icons.qr_code_scanner_outlined,
+          title: 'Scan & Issue',
+          subtitle: 'Award points',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ScanHubScreen(mode: ScanMode.issue),
+            ),
+          ),
+        ),
+
+      // 4. Bill Points (Credit Strips): Manager & Director only
+      if (staffProvider.canAwardStrips)
+        _actionCard(
+          context,
+          icon: Icons.receipt_long_outlined,
+          title: 'Bill Points',
+          subtitle: 'Credit strips',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const StaffBillingPointScreen(),
+            ),
+          ),
+        ),
+
+      // 5. Rewards Fulfillment Queue: Manager & Director only
+      if (staffProvider.canAccessFulfillment)
+        _actionCard(
+          context,
+          icon: Icons.inventory_2_outlined,
+          title: 'Rewards',
+          subtitle: 'Fulfill & serve',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const RewardsFulfillmentScreen(),
+            ),
+          ),
+        ),
+
+      // 6. Shift Attendance: Available to all staff roles
+      _actionCard(
+        context,
+        icon: Icons.access_time_outlined,
+        title: 'Attendance',
+        subtitle: 'Shift logs',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AttendanceScreen(),
+          ),
+        ),
+      ),
+
+      // 7. Leave Requests: Available to all staff roles
+      _actionCard(
+        context,
+        icon: Icons.event_available_outlined,
+        title: 'Leave',
+        subtitle: 'Apply & track',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const StaffLeaveScreen(),
+          ),
+        ),
+      ),
+    ];
 
     return Scaffold(
       body: SafeArea(
@@ -30,9 +143,9 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 20),
             _welcomeCard(
               context,
-              staff?.name ?? 'Staff',
-              staff?.permissions.tierName ?? '—',
-              branch?.name ?? '',
+              name: staff?.name ?? 'Staff',
+              tier: role.label,
+              branchName: branch?.name ?? '',
             ),
             const SizedBox(height: 20),
             GridView.count(
@@ -42,104 +155,10 @@ class HomeScreen extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 0.95,
-              children: [
-                _actionCard(
-                  context,
-                  icon: Icons.qr_code_scanner_outlined,
-                  title: 'Scan & Issue',
-                  subtitle: 'Award points',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ScanHubScreen(mode: ScanMode.issue),
-                    ),
-                  ),
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.card_giftcard_outlined,
-                  title: 'Scan & Redeem',
-                  subtitle: 'Claim rewards',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const ScanHubScreen(mode: ScanMode.redeem),
-                    ),
-                  ),
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Rewards',
-                  subtitle: 'Fulfill & serve',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RewardsFulfillmentScreen(),
-                    ),
-                  ),
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.access_time_outlined,
-                  title: 'Attendance',
-                  subtitle: 'Shift logs',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AttendanceScreen(),
-                    ),
-                  ),
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Bookings',
-                  subtitle: 'Live reservations',
-                  onTap: () {
-                    final branchName = branch?.name ?? 'Kingsbury';
-                    final branchId =
-                        CollinsVenueMapper.getBranchNumericId(branchName);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BranchBookingsDashboardScreen(
-                          branchId: branchId,
-                          branchName: branchName,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.event_available_outlined,
-                  title: 'Leave',
-                  subtitle: 'Apply & track',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StaffLeaveScreen(),
-                    ),
-                  ),
-                ),
-                _actionCard(
-                  context,
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Bill Points',
-                  subtitle: 'Credit strips',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StaffBillingPointScreen(),
-                    ),
-                  ),
-                ),
-              ],
+              children: actionCards,
             ),
             const SizedBox(height: 24),
-            _todaysActivity(),
+            _todaysActivity(staffProvider),
             const SizedBox(height: 24),
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -205,11 +224,11 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _welcomeCard(
-    BuildContext context,
-    String name,
-    String tier,
-    String branchName,
-  ) {
+    BuildContext context, {
+    required String name,
+    required String tier,
+    required String branchName,
+  }) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -279,7 +298,7 @@ class HomeScreen extends StatelessWidget {
             const Divider(height: 28),
             Consumer<StaffProvider>(
               builder: (context, sp, _) {
-                final role = sp.staff?.role ?? 'Staff';
+                final roleLabel = sp.role.label;
                 return Row(
                   children: [
                     const Icon(
@@ -289,7 +308,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '$role · Shift active',
+                      '$roleLabel · Shift active',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                   ],
@@ -348,22 +367,34 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _todaysActivity() {
-    return const Column(
+  Widget _todaysActivity(StaffProvider staffProvider) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           "Today's Activity",
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _StatTile(value: '—', label: 'Points Issued')),
-            SizedBox(width: 12),
-            Expanded(child: _StatTile(value: '—', label: 'Redemptions')),
-            SizedBox(width: 12),
-            Expanded(child: _StatTile(value: 'Live', label: 'Rewards Queue')),
+            if (staffProvider.canAwardStrips) ...[
+              const Expanded(
+                  child: _StatTile(value: '—', label: 'Points Issued')),
+              const SizedBox(width: 12),
+            ],
+            if (staffProvider.canRedeemRewards) ...[
+              const Expanded(
+                  child: _StatTile(value: '—', label: 'Redemptions')),
+              const SizedBox(width: 12),
+            ],
+            if (staffProvider.canAccessFulfillment) ...[
+              const Expanded(
+                  child: _StatTile(value: 'Live', label: 'Rewards Queue')),
+            ] else ...[
+              const Expanded(
+                  child: _StatTile(value: 'Active', label: 'Floor Status')),
+            ],
           ],
         ),
       ],
@@ -374,6 +405,7 @@ class HomeScreen extends StatelessWidget {
 class _StatTile extends StatelessWidget {
   final String value;
   final String label;
+
   const _StatTile({required this.value, required this.label});
 
   @override

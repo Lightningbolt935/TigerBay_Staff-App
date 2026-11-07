@@ -1,7 +1,7 @@
 name: tigerbay_staff_app
 description: TigerBay Staff App - attendance, loyalty, and table control for TigerBay staff.
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.0.0+8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -27,7 +27,7 @@ dependencies:
   permission_handler: ^11.3.1
 
   # QR scanning
-  mobile_scanner: ^5.1.1
+  mobile_scanner: ^6.0.2
 
   # Secure PIN storage
   flutter_secure_storage: ^9.2.2

@@ -13,9 +13,8 @@ class RewardsFulfillmentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final staffProvider = context.read<StaffProvider>();
-    
-    // Read the branch ID directly from the authenticated staff member's database record
-    final branchId = staffProvider.branch?.id ?? staffProvider.staff?.branchId;
+    final branchId =
+        staffProvider.branch?.id.toString() ?? staffProvider.staff?.branchId;
 
     return ChangeNotifierProvider(
       create: (_) => RewardFulfillmentProvider(
@@ -75,7 +74,7 @@ class _RewardsFulfillmentView extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              branch?.name ?? staffProvider.staff?.branch ?? '',
+                              branch?.name ?? 'TigerBay Lounge',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 13,
@@ -424,11 +423,9 @@ class _RewardRedemptionCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
           const Divider(height: 1, color: Color(0xFF24222C)),
           const SizedBox(height: 10),
-
           Row(
             children: [
               const Icon(Icons.person_outline,
@@ -455,9 +452,7 @@ class _RewardRedemptionCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
           if (isPending)
             SizedBox(
               width: double.infinity,
