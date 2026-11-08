@@ -99,9 +99,24 @@ jobs:
   build-ios:
     name: Build iOS IPA & Upload to TestFlight
     needs: [code-quality]
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [ -d "/Applications/Xcode_26.3.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.3.app
+          elif [ -d "/Applications/Xcode_26.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.2.app
+          elif [ -d "/Applications/Xcode_26.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          elif [ -d "/Applications/Xcode_26.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
 
       - uses: subosito/flutter-action@v2
         with:
@@ -130,7 +145,7 @@ jobs:
         run: |
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           if [ -f ios/TigerBay_StaffApp.mobileprovision ]; then
-            cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+            cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/TigerBay_StaffApp.mobileprovision
             UUID=$(python3 -c "import plistlib; raw = open('ios/TigerBay_StaffApp.mobileprovision', 'rb').read(); start = raw.find(b'<?xml'); end = raw.find(b'</plist>') + 8; pl = plistlib.loads(raw[start:end]); print(pl.get('UUID'))")
             cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${UUID}.mobileprovision
             echo "Installed profile UUID: ${UUID}"
@@ -148,10 +163,7 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/TigerBayStaff.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="TigerBay StaffApp" \
-            DEVELOPMENT_TEAM=ZDZ58YL7Y3 \
+            -allowProvisioningUpdates \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Xcode Export IPA
