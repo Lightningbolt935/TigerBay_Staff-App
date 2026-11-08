@@ -131,7 +131,9 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           if [ -f ios/TigerBay_StaffApp.mobileprovision ]; then
             cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-            cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/8de1befc-9082-4188-91c9-cad66e617280.mobileprovision
+            UUID=$(python3 -c "import plistlib; raw = open('ios/TigerBay_StaffApp.mobileprovision', 'rb').read(); start = raw.find(b'<?xml'); end = raw.find(b'</plist>') + 8; pl = plistlib.loads(raw[start:end]); print(pl.get('UUID'))")
+            cp ios/TigerBay_StaffApp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${UUID}.mobileprovision
+            echo "Installed profile UUID: ${UUID}"
           fi
           ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
 
