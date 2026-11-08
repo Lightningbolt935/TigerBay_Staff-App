@@ -59,5 +59,9 @@
     <!-- Face ID: Quick device release and shift authentication -->
     <key>NSFaceIDUsageDescription</key>
     <string>TigerBay uses Face ID to quickly verify device release authorization.</string>
+
+    <!-- App Store Export Compliance: Uses standard HTTPS/TLS only -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>
