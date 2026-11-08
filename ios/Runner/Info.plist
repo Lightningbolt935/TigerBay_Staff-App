@@ -47,6 +47,10 @@
     <!-- Location: Foreground branch attendance verification only -->
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>We need your location to verify you are physically present at the Tigerbay branch to clock in or out.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>We need your location to verify you are physically present at the Tigerbay branch to clock in or out.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>We need your location to verify you are physically present at the Tigerbay branch to clock in or out.</string>
 
     <!-- Camera: QR Loyalty scanning and photo capture -->
     <key>NSCameraUsageDescription</key>
