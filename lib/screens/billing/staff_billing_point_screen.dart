@@ -197,7 +197,7 @@ class _StaffBillingPointScreenState extends State<StaffBillingPointScreen> {
         venueId: venueId,
       );
 
-      if (mounted && resultData != null) {
+      if (mounted) {
         _showSuccessDialog(resultData);
       }
     } catch (e) {
